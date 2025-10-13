@@ -23,15 +23,20 @@
                     <p class="text-sm text-gray-500 mb-1">端口映射</p>
                     <div class="flex flex-wrap items-center">
                         <p class="font-medium text-gray-800 mr-2">
-                            {{ container.host_port }}:{{ container.container_port }}
+                            {{ host_ip }}:{{ container.host_port }}-->{{ container.container_port }}
                         </p>
+                        <button onclick="copyAddress({{ container.host_port }})"
+                            class="text-gray-500 hover:text-gray-700 mr-1 p-1 rounded-full hover:bg-gray-200 transition-colors duration-200"
+                            title="复制地址">
+                            <i class="fa fa-clone"></i>
+                        </button>
                         <button onclick="visitContainer({{ container.host_port }})"
                             class="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-200 transition-colors duration-200"
                             title="访问容器">
                             <i class="fa fa-external-link"></i>
                         </button>
                     </div>
-                    <p class="text-xs text-gray-500 mt-1">主机:容器</p>
+                    <p class="text-xs text-gray-500 mt-1">主机-->容器</p>
                 </div>
             </div>
         </div>
@@ -58,7 +63,7 @@
                         </div>
                     </div>
                     <div class="flex justify-end mt-2">
-                        <button onclick="extendExpiry({{ container.id }})"
+                        <button onclick="extendExpiry({{ container.id }}, '{{ container.name }}')"
                             class="text-xs px-2.5 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors duration-200">
                             <i class="fa fa-refresh mr-1"></i> 延期1小时
                         </button>
@@ -93,7 +98,7 @@
                 </nav>
 
                 <div class="p-4 border-t border-gray-200">
-                    <button onclick="confirmDelete({{ container.id }})"
+                    <button onclick="confirmDelete({{ container.id }}, '{{ container.name }}')"
                         class="w-full flex items-center justify-center px-4 py-2.5 text-sm font-medium text-red-700 bg-red-50 rounded-md hover:bg-red-100 transition-colors duration-200">
                         <i class="fa fa-trash mr-2"></i> 删除容器
                     </button>
@@ -119,100 +124,9 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
-    // 容器删除确认功能
-    function confirmDelete(containerId) {
-        if (confirm(`确定要删除容器 #${containerId} 吗？此操作不可撤销，所有数据将丢失。`)) {
-            // 如果用户确认，跳转到删除接口
-            window.location.href = `/manage_container/${containerId}/remove`;
-        }
-    }
-</script>
+<script src="/static/js/container.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js"></script>
 <script>
-    // 访问容器函数
-    function visitContainer(port) {
-        // 假设容器通过localhost和指定端口访问
-        const url = `http://{{host_ip}}:${port}`;
-        // 打开新窗口访问容器
-        window.open(url, '_blank');
-    }
-    
-    // 延期功能
-    function extendExpiry(containerId) {
-        if (confirm(`确定要将容器 #${containerId} 延期2小时吗？`)) {
-            fetch(`/manage_container/${containerId}/extend`, { method: 'POST' })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showToast('操作成功', '容器已延期1小时', 'success');
-                        // 更新剩余时间显示
-                        const expiryEl = document.querySelector('.container-expiry');
-                        expiryEl.setAttribute('data-expiry', data.new_destroy_time);
-                        updateAllExpiry();
-                    } else {
-                        showToast('出错啦', data.message, 'error');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error extending container expiry:', error);
-                    showToast('出错啦', '请求失败，请稍后重试', 'error');
-                });
-        }
-    }
-
-    // 格式化时间（将毫秒转换为小时:分钟:秒）
-    function formatTime(ms) {
-        if (ms <= 0) return "已过期";
-
-        const hours = Math.floor(ms / (1000 * 60 * 60));
-        const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((ms % (1000 * 60)) / 1000);
-
-        return `${hours}h ${minutes}m ${seconds}s`;
-    }
-
-    // 更新所有容器的剩余时间和进度条
-    function updateAllExpiry() {
-        const now = new Date().getTime();
-        const totalDuration = 2 * 60 * 60 * 1000; // 2小时的总毫秒数
-
-        document.querySelectorAll('.container-expiry').forEach(el => {
-            const expiryTime = new Date(el.getAttribute('data-expiry')).getTime();
-            const remaining = expiryTime - now;
-            el.textContent = formatTime(remaining);
-        });
-
-        document.querySelectorAll('.container-progress').forEach(el => {
-            const expiryTime = new Date(el.getAttribute('data-expiry')).getTime();
-            const createdAt = new Date(expiryTime - totalDuration).getTime();
-            const remaining = expiryTime - now;
-            const elapsed = now - createdAt;
-
-            // 计算进度百分比
-            let percentage = (remaining / totalDuration) * 100;
-            percentage = Math.max(0, Math.min(100, percentage));
-
-            // 设置进度条宽度
-            el.style.width = `${percentage}%`;
-
-            // 根据剩余时间改变进度条颜色
-            if (percentage < 20) {
-                el.style.backgroundColor = '#EF4444'; // 红色 - 即将过期
-            } else if (percentage < 50) {
-                el.style.backgroundColor = '#F59E0B'; // 黄色 - 剩余时间不多
-            } else {
-                el.style.backgroundColor = '#4B5563'; // 深灰色 - 正常
-            }
-        });
-    }
-
-    // 初始化时更新一次
-    updateAllExpiry();
-
-    // 每秒更新一次
-    setInterval(updateAllExpiry, 1000);
-
     const socket = io('/logs', {
         withCredentials: true,
     });

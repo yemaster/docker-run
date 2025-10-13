@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}容器文件 - {{ container.id }}{% endblock %}
+{% block title %}容器文件 - #{{ container.name }}{% endblock %}
 
 {% block header %}
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
@@ -27,15 +27,20 @@
                     <p class="text-sm text-gray-500 mb-1">端口映射</p>
                     <div class="flex flex-wrap items-center">
                         <p class="font-medium text-gray-800 mr-2">
-                            {{ container.host_port }}:{{ container.container_port }}
+                            {{ host_ip }}:{{ container.host_port }}-->{{ container.container_port }}
                         </p>
+                        <button onclick="copyAddress({{ container.host_port }})"
+                            class="text-gray-500 hover:text-gray-700 mr-1 p-1 rounded-full hover:bg-gray-200 transition-colors duration-200"
+                            title="复制地址">
+                            <i class="fa fa-clone"></i>
+                        </button>
                         <button onclick="visitContainer({{ container.host_port }})"
                             class="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-200 transition-colors duration-200"
                             title="访问容器">
                             <i class="fa fa-external-link"></i>
                         </button>
                     </div>
-                    <p class="text-xs text-gray-500 mt-1">主机:容器</p>
+                    <p class="text-xs text-gray-500 mt-1">主机-->容器</p>
                 </div>
             </div>
         </div>
@@ -62,7 +67,7 @@
                         </div>
                     </div>
                     <div class="flex justify-end mt-2">
-                        <button onclick="extendExpiry({{ container.id }})"
+                        <button onclick="extendExpiry({{ container.id }}, '{{ container.name }}')"
                             class="text-xs px-2.5 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors duration-200">
                             <i class="fa fa-refresh mr-1"></i> 延期1小时
                         </button>
@@ -97,7 +102,7 @@
                 </nav>
 
                 <div class="p-4 border-t border-gray-200">
-                    <button onclick="confirmDelete({{ container.id }})"
+                    <button onclick="confirmDelete({{ container.id }}, '{{ container.name }}')"
                         class="w-full flex items-center justify-center px-4 py-2.5 text-sm font-medium text-red-700 bg-red-50 rounded-md hover:bg-red-100 transition-colors duration-200">
                         <i class="fa fa-trash mr-2"></i> 删除容器
                     </button>
@@ -114,6 +119,9 @@
 
                 <div class="fill-manager">
                     <div class="loading-mask" id="loading-mask">
+                        <div
+                            class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-700 mb-4">
+                        </div>
                         <div class="loading-text">加载中</div>
                     </div>
                     <div class="file-edit-container hidden flex flex-col h-full" id="fileEditorContainer">
@@ -156,9 +164,6 @@
                                     onclick="enterDirectory('..')">
                                     <i class="fa fa-level-up"></i>
                                 </button>
-                                <!--button class="text-gray-500 hover:text-gray-700 p-1" title="复制路径">
-                                    <i class="fa fa-copy"></i>
-                                </button-->
                             </div>
                         </div>
                     </div>
@@ -166,13 +171,35 @@
                     <!-- 工具栏 -->
                     <div class="px-6 py-4 border-b border-gray-100 flex flex-wrap justify-between items-center gap-3">
                         <div class="flex flex-wrap gap-2">
-                            <button id="newFolderBtn" onclick="createNew('dir')"
-                                class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors duration-200">
-                                <i class="fa fa-folder mr-2"></i> 新建文件夹
-                            </button>
-                            <button id="newFileBtn" onclick="createNew('file')"
-                                class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors duration-200">
-                                <i class="fa fa-file mr-2"></i> 新建文件
+                            <!-- 新建下拉菜单 -->
+                            <div class="relative inline-block">
+                                <button id="newDropdownBtn"
+                                    class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors duration-200"
+                                    onclick="toggleNewDropdown()">
+                                    <i class="fa fa-plus mr-2"></i> 新建
+                                    <i class="fa fa-chevron-down ml-2 text-xs"></i>
+                                </button>
+                                <!-- 下拉菜单内容 -->
+                                <div id="newDropdownMenu"
+                                    class="hidden absolute left-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-10">
+                                    <div class="py-1">
+                                        <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                            onclick="createNew('dir'); toggleNewDropdown(); return false;">
+                                            <i class="fa fa-folder mr-2"></i> 文件夹
+                                        </a>
+                                        <a href="#" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                            onclick="createNew('file'); toggleNewDropdown(); return false;">
+                                            <i class="fa fa-file mr-2"></i> 文件
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 上传按钮 -->
+                            <button id="uploadBtn"
+                                class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors duration-200"
+                                onclick="openUploadModal()">
+                                <i class="fa fa-upload mr-2"></i> 上传
                             </button>
                         </div>
 
@@ -210,131 +237,102 @@
                     </div>
                 </div>
             </div>
+
+            <div id="uploadModal"
+                class="fixed inset-0 bg-black bg-opacity-50 z-10 hidden flex items-center justify-center p-4">
+                <div class="bg-white rounded-lg shadow-lg max-w-md w-full mx-auto transform transition-all duration-150 scale-95 opacity-0"
+                    id="uploadModalContent">
+                    <div class="p-6 border-b border-gray-200">
+                        <h3 class="text-lg font-semibold text-gray-800">上传文件</h3>
+                    </div>
+
+                    <div class="p-6">
+                        <!-- 拖放上传区域 -->
+                        <div id="modalDropArea"
+                            class="border-2 border-dashed border-gray-300 rounded-md p-6 text-center hover:border-gray-500 transition-colors duration-200 mb-4">
+                            <i class="fa fa-cloud-upload text-3xl text-gray-400 mb-3"></i>
+                            <p class="text-gray-600 mb-2">拖放文件到此处</p>
+                            <p class="text-sm text-gray-500 mb-4">或点击下方按钮选择</p>
+                            <div class="flex flex-wrap justify-center gap-3">
+                                <label
+                                    class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors duration-200 cursor-pointer">
+                                    <i class="fa fa-file mr-2"></i> 选择文件
+                                    <input type="file" id="modalFileUpload" class="hidden" multiple>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- 上传进度 -->
+                        <div id="modalUploadProgress" class="hidden">
+                            <div class="text-sm text-gray-600 mb-1 flex justify-between">
+                                <span>上传中...</span>
+                                <span id="progressPercent">0%</span>
+                            </div>
+                            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                <div id="modalProgressBar"
+                                    class="bg-gray-700 h-2.5 rounded-full transition-all duration-300"
+                                    style="width: 0%"></div>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1" id="uploadStatus">准备上传第一个文件...</div>
+                        </div>
+
+                        <!-- 上传文件列表 -->
+                        <div id="uploadFilesList" class="text-sm mt-4 hidden">
+                            <div class="flex justify-between items-center mb-2">
+                                <p class="font-medium text-gray-700">待上传文件：</p>
+                                <span class="text-xs text-gray-500" id="fileCount">0 个文件</span>
+                            </div>
+
+                            <!-- 带滚动的文件列表 -->
+                            <div class="border border-gray-200 rounded-md">
+                                <div
+                                    class="bg-gray-50 px-4 py-2 border-b border-gray-200 text-xs font-medium text-gray-500 grid grid-cols-12 gap-2">
+                                    <div class="col-span-7">名称</div>
+                                    <div class="col-span-3 hidden sm:block">大小</div>
+                                    <div class="col-span-2 text-right">操作</div>
+                                </div>
+
+                                <ul id="filesToUpload" class="overflow-y-auto max-h-48">
+                                    <!-- 文件列表项将动态添加到这里 -->
+                                </ul>
+                            </div>
+
+                            <!-- 总大小信息 -->
+                            <div class="mt-2 text-xs text-gray-500 text-right" id="totalSize">
+                                总大小：0 KB
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="px-6 py-4 bg-gray-50 rounded-b-lg flex justify-end gap-3">
+                        <button type="button"
+                            class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+                            onclick="closeUploadModal()">
+                            取消
+                        </button>
+                        <button type="button" id="startUploadBtn"
+                            class="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-800 transition-colors duration-200"
+                            onclick="startUpload()" disabled>
+                            开始上传
+                        </button>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
-<style>
-    .fill-manager {
-        position: relative;
-    }
-
-    .loading-mask {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: rgba(255, 255, 255, 0.8);
-        backdrop-filter: blur(5px);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 10;
-        opacity: 0;
-        visibility: hidden;
-        transition: opacity 0.3s ease;
-    }
-
-    .file-edit-container {
-        position: absolute;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        background: #fff;
-        z-index: 5;
-    }
-</style>
 {% endblock %}
 
 {% block scripts %}
+<script src="/static/js/container.js"></script>
 <script>
-    // 访问容器函数
-    function visitContainer(port) {
-        // 假设容器通过localhost和指定端口访问
-        const url = `http://{{host_ip}}:${port}`;
-        // 打开新窗口访问容器
-        window.open(url, '_blank');
-    }
-
-    // 容器删除确认功能
-    function confirmDelete(containerId) {
-        if (confirm(`确定要删除容器 #${containerId} 吗？此操作不可撤销，所有数据将丢失。`)) {
-            // 如果用户确认，跳转到删除接口
-            window.location.href = `/manage_container/${containerId}/remove`;
-        }
-    }
+    const codeFiles = ['.py', '.js', '.html', '.css', '.json', '.xml', '.yml', '.yaml', '.sh'];
+    const imageFiles = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp'];
+    const compressedFiles = ['.zip', '.rar', '.tar', '.gz', '.7z'];
+    const audioFiles = ['.mp3', '.wav', '.ogg', '.flac', '.aac', '.m4a'];
+    const pdfFiles = ['.pdf'];
 </script>
 <script>
-    // 延期功能
-    function extendExpiry(containerId) {
-        if (confirm(`确定要将容器 #${containerId} 延期2小时吗？`)) {
-            fetch(`/manage_container/${containerId}/extend`, { method: 'POST' })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        showToast('操作成功', '容器已延期1小时', 'success');
-                        // 更新剩余时间显示
-                        const expiryEl = document.querySelector('.container-expiry');
-                        expiryEl.setAttribute('data-expiry', data.new_destroy_time);
-                        updateAllExpiry();
-                    } else {
-                        showToast('出错啦', data.message, 'error');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error extending container expiry:', error);
-                    showToast('出错啦', '请求失败，请稍后重试', 'error');
-                });
-        }
-    }
-
-    // 格式化时间（将毫秒转换为小时:分钟:秒）
-    function formatTime(ms) {
-        if (ms <= 0) return "已过期";
-
-        const hours = Math.floor(ms / (1000 * 60 * 60));
-        const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
-        const seconds = Math.floor((ms % (1000 * 60)) / 1000);
-
-        return `${hours}h ${minutes}m ${seconds}s`;
-    }
-
-    // 更新所有容器的剩余时间和进度条
-    function updateAllExpiry() {
-        const now = new Date().getTime();
-        const totalDuration = 2 * 60 * 60 * 1000; // 2小时的总毫秒数
-
-        document.querySelectorAll('.container-expiry').forEach(el => {
-            const expiryTime = new Date(el.getAttribute('data-expiry')).getTime();
-            const remaining = expiryTime - now;
-            el.textContent = formatTime(remaining);
-        });
-
-        document.querySelectorAll('.container-progress').forEach(el => {
-            const expiryTime = new Date(el.getAttribute('data-expiry')).getTime();
-            const createdAt = new Date(expiryTime - totalDuration).getTime();
-            const remaining = expiryTime - now;
-            const elapsed = now - createdAt;
-
-            // 计算进度百分比
-            let percentage = (remaining / totalDuration) * 100;
-            percentage = Math.max(0, Math.min(100, percentage));
-
-            // 设置进度条宽度
-            el.style.width = `${percentage}%`;
-
-            // 根据剩余时间改变进度条颜色
-            if (percentage < 20) {
-                el.style.backgroundColor = '#EF4444'; // 红色 - 即将过期
-            } else if (percentage < 50) {
-                el.style.backgroundColor = '#F59E0B'; // 黄色 - 剩余时间不多
-            } else {
-                el.style.backgroundColor = '#4B5563'; // 深灰色 - 正常
-            }
-        });
-    }
-
     function base64Encode(str) {
         const encoder = new TextEncoder();
         const uint8Array = encoder.encode(str);
@@ -364,24 +362,8 @@
         }
     }
 
-    // 初始化时更新一次
-    updateAllExpiry();
-
-    // 每秒更新一次
-    setInterval(updateAllExpiry, 1000);
-
-    const codeFiles = ['.py', '.js', '.html', '.css', '.json', '.md', '.txt', '.xml', '.yml', '.yaml', '.sh'];
-    const imageFiles = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp'];
-
     let nowDir = "{{ current_path }}";
     let nowFiles = [];
-
-    function formatSize(bytes) {
-        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-        if (bytes === 0) return '0 B';
-        const i = Math.floor(Math.log(bytes) / Math.log(1024));
-        return (bytes / Math.pow(1024, i)).toFixed(2) + ' ' + sizes[i];
-    }
 
     function showLoading() {
         const mask = document.getElementById('loading-mask');
@@ -483,25 +465,15 @@
     }
 
     function downloadFile(fileName) {
-        fetch("/container/{{ container.id }}/files/download?path=" + encodeURIComponent(nowDir) + "&file=" + encodeURIComponent(fileName))
-            .then(response => response.json())
-            .then(r => {
-                if (r.success) {
-                    const link = document.createElement('a');
-                    link.href = 'data:application/octet-stream;base64,' + r.content_base64;
-                    link.download = fileName;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    showToast('操作成功', '文件下载已开始', 'success');
-                } else {
-                    showToast('出错啦', r.message, 'error');
-                }
-            })
-            .catch(error => {
-                console.error('Error downloading file:', error);
-                showToast('出错啦', error.message, 'error');
-            });
+        const downloadUrl = "/container/{{ container.id }}/files/download?path=" + encodeURIComponent(nowDir) + "&file=" + encodeURIComponent(fileName);
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        setTimeout(() => {
+            document.body.removeChild(link);
+        }, 100);
     }
 
     function openFile(fileName) {
@@ -519,11 +491,13 @@
                     document.getElementById('fileEditor').value = content;
                 } else {
                     showToast('出错啦', r.message, 'error');
+                    closeEditor();
                 }
             })
             .catch(error => {
                 console.error('Error getting file content:', error);
                 showToast('出错啦', error.message, 'error');
+                closeEditor();
             })
             .finally(() => {
                 hideLoading();
@@ -606,7 +580,7 @@
                         console.error(`Error creating ${label}:`, error);
                         showToast('出错啦', error.message, 'error');
                     });
-            } else {
+            } else if (confirmed) {
                 showToast('出错啦', `${label}名称不能为空`, 'error');
             }
         });
@@ -621,7 +595,12 @@
             tr.className = 'hover:bg-gray-50 transition-colors duration-150';
 
             const isDir = file.type === 'dir';
-            const iconClass = isDir ? 'fa-folder text-yellow-500' : (codeFiles.some(ext => file.name.endsWith(ext)) ? 'fa-file-code-o text-blue-500' : (imageFiles.some(ext => file.name.endsWith(ext)) ? 'fa-file-image-o text-green-500' : 'fa-file-text-o text-gray-500'));
+            const iconClass = isDir ? 'fa-folder text-yellow-500' :
+                (codeFiles.some(ext => file.name.endsWith(ext)) ? 'fa-file-code-o text-blue-500' :
+                    (imageFiles.some(ext => file.name.endsWith(ext)) ? 'fa-file-image-o text-green-500' :
+                        (pdfFiles.some(ext => file.name.endsWith(ext)) ? 'fa-file-pdf-o text-red-500' :
+                            (compressedFiles.some(ext => file.name.endsWith(ext)) ? 'fa-file-zip-o text-purple-500' :
+                                'fa-file-o text-gray-500'))));
 
             tr.innerHTML = `
                 <td class="px-6 py-4 whitespace-nowrap">
@@ -664,5 +643,271 @@
 
     getFileList(nowDir);
     renderCurrentPath();
+</script>
+<script>
+
+    const uploadModal = document.getElementById('uploadModal');
+    const uploadModalContent = document.getElementById('uploadModalContent');
+    const modalDropArea = document.getElementById('modalDropArea');
+    const modalFileUpload = document.getElementById('modalFileUpload');
+    const uploadFilesList = document.getElementById('uploadFilesList');
+    const filesToUpload = document.getElementById('filesToUpload');
+    const fileCount = document.getElementById('fileCount');
+    const totalSize = document.getElementById('totalSize');
+    const modalUploadProgress = document.getElementById('modalUploadProgress');
+    const modalProgressBar = document.getElementById('modalProgressBar');
+    const progressPercent = document.getElementById('progressPercent');
+    const uploadStatus = document.getElementById('uploadStatus');
+    const startUploadBtn = document.getElementById('startUploadBtn');
+    let selectedFiles = [];
+    let uploadAbortController = null;
+
+    function openUploadModal() {
+        // 重置上传状态
+        resetUploadState();
+
+        // 显示模态框
+        uploadModal.classList.remove('hidden');
+        setTimeout(() => {
+            uploadModalContent.classList.remove('scale-95', 'opacity-0');
+            uploadModalContent.classList.add('scale-100', 'opacity-100');
+        }, 50);
+    }
+
+    // 重置上传状态
+    function resetUploadState() {
+        selectedFiles = [];
+        filesToUpload.innerHTML = '';
+        uploadFilesList.classList.add('hidden');
+        modalUploadProgress.classList.add('hidden');
+        modalProgressBar.style.width = '0%';
+        progressPercent.textContent = '0%';
+        startUploadBtn.disabled = true;
+        if (uploadAbortController) {
+            uploadAbortController.abort();
+            uploadAbortController = null;
+        }
+    }
+
+    // 关闭上传模态框
+    function closeUploadModal() {
+        uploadModalContent.classList.remove('scale-100', 'opacity-100');
+        uploadModalContent.classList.add('scale-95', 'opacity-0');
+
+        setTimeout(() => {
+            uploadModal.classList.add('hidden');
+            resetUploadState();
+        }, 150);
+    }
+
+    // 拖放上传功能
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        modalDropArea.addEventListener(eventName, preventDefaults, false);
+    });
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        modalDropArea.addEventListener(eventName, highlightDropArea, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        modalDropArea.addEventListener(eventName, unhighlightDropArea, false);
+    });
+
+    modalDropArea.addEventListener('drop', handleModalDrop, false);
+    modalFileUpload.addEventListener('change', handleModalFiles, false);
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    function highlightDropArea() {
+        modalDropArea.classList.add('border-gray-500', 'bg-gray-50');
+    }
+
+    function unhighlightDropArea() {
+        modalDropArea.classList.remove('border-gray-500', 'bg-gray-50');
+    }
+
+    function handleModalDrop(e) {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        handleModalFiles({ target: { files } });
+    }
+
+    function handleModalFiles(e) {
+        const files = e.target.files;
+        if (files.length > 0) {
+            // 过滤掉包含路径分隔符的文件（与后端验证对应）
+            const validFiles = Array.from(files).filter(file => {
+                return !file.name.includes('/') && !file.name.includes('\\');
+            });
+
+            // 显示过滤提示
+            if (validFiles.length < files.length) {
+                showToast('文件过滤', `已过滤 ${files.length - validFiles.length} 个包含路径分隔符的文件`, 'warning');
+            }
+
+            selectedFiles = validFiles;
+            displaySelectedFiles();
+        }
+    }
+
+    // 格式化文件大小
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // 显示选中的文件列表
+    function displaySelectedFiles() {
+        filesToUpload.innerHTML = '';
+        let totalBytes = 0;
+
+        selectedFiles.forEach((file, index) => {
+            totalBytes += file.size;
+
+            // 创建文件列表项
+            const li = document.createElement('li');
+            li.className = 'px-4 py-2 border-b border-gray-100 hover:bg-gray-50 transition-colors grid grid-cols-12 gap-2 items-center';
+            li.dataset.index = index;
+
+            // 确定文件图标
+            let fileIcon = 'fa-file-o';
+            if (file.type.startsWith('image/')) {
+                fileIcon = 'fa-file-image-o';
+            } else if (file.type.startsWith('text/')) {
+                fileIcon = 'fa-file-text-o';
+            } else if (file.type.includes('pdf')) {
+                fileIcon = 'fa-file-pdf-o';
+            } else if (file.type.includes('zip') || file.type.includes('compressed')) {
+                fileIcon = 'fa-file-zip-o';
+            }
+
+            li.innerHTML = `
+            <div class="col-span-7 flex items-center">
+                <i class="fa ${fileIcon} text-gray-500 mr-2"></i>
+                <span class="truncate">${file.name}</span>
+            </div>
+            <div class="col-span-3 text-gray-500 hidden sm:block">${formatFileSize(file.size)}</div>
+            <div class="col-span-2 text-right">
+                <button class="text-gray-400 hover:text-red-500 transition-colors" onclick="removeFile(${index})">
+                    <i class="fa fa-times"></i>
+                </button>
+            </div>
+        `;
+
+            filesToUpload.appendChild(li);
+        });
+
+        // 更新文件计数和总大小
+        fileCount.textContent = `${selectedFiles.length} 个文件`;
+        totalSize.textContent = `总大小：${formatFileSize(totalBytes)}`;
+
+        // 显示文件列表并启用上传按钮
+        uploadFilesList.classList.remove('hidden');
+        startUploadBtn.disabled = false;
+    }
+
+    // 移除单个文件
+    function removeFile(index) {
+        selectedFiles.splice(index, 1);
+        displaySelectedFiles();
+
+        // 如果没有文件了，隐藏列表
+        if (selectedFiles.length === 0) {
+            uploadFilesList.classList.add('hidden');
+            startUploadBtn.disabled = true;
+        }
+    }
+
+    function startUpload() {
+        if (selectedFiles.length === 0) return;
+
+        // 隐藏文件列表，显示进度条
+        uploadFilesList.classList.add('hidden');
+        modalUploadProgress.classList.remove('hidden');
+        startUploadBtn.disabled = true;
+
+        // 开始逐个上传文件
+        uploadFilesSequentially(0);
+    }
+
+    // 逐个上传文件
+    function uploadFilesSequentially(index) {
+        if (index >= selectedFiles.length) {
+            // 所有文件上传完成
+            uploadStatus.textContent = `所有 ${selectedFiles.length} 个文件上传完成`;
+            modalProgressBar.style.width = '100%';
+            progressPercent.textContent = '100%';
+
+            // 延迟关闭模态框并刷新文件列表
+            setTimeout(() => {
+                closeUploadModal();
+                getFileList(nowDir);
+                showToast('上传成功', `已成功上传 ${selectedFiles.length} 个文件`, 'success');
+            }, 1000);
+            return;
+        }
+
+        // 准备上传当前文件
+        const file = selectedFiles[index];
+        const current = index + 1;
+        const total = selectedFiles.length;
+
+        // 更新进度状态
+        uploadStatus.textContent = `正在上传 ${file.name} (${current}/${total})`;
+        const progressPerFile = 100 / total;
+        const baseProgress = index * progressPerFile;
+        modalProgressBar.style.width = `${baseProgress}%`;
+        progressPercent.textContent = `${Math.round(baseProgress)}%`;
+
+        // 创建表单数据
+        const formData = new FormData();
+        formData.append('file', file);
+
+        // 创建中止控制器
+        uploadAbortController = new AbortController();
+
+        // 执行上传
+        fetch(`/container/{{ container.id }}/files/upload?path=${encodeURIComponent(nowDir)}`, {
+            method: 'POST',
+            body: formData,
+            signal: uploadAbortController.signal,
+            // 上传进度事件监听
+            onprogress: function (e) {
+                if (e.lengthComputable) {
+                    const fileProgress = (e.loaded / e.total) * progressPerFile;
+                    const totalProgress = baseProgress + fileProgress;
+                    modalProgressBar.style.width = `${totalProgress}%`;
+                    progressPercent.textContent = `${Math.round(totalProgress)}%`;
+                }
+            }
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // 当前文件上传成功，继续下一个
+                    uploadFilesSequentially(index + 1);
+                } else {
+                    // 上传失败，显示错误信息
+                    throw new Error(data.message || '文件上传失败');
+                }
+            })
+            .catch(error => {
+                if (error.name !== 'AbortError') {
+                    // 非中止错误，显示错误信息
+                    showToast('上传失败', error.message, 'error');
+
+                    // 显示文件列表，允许用户重试
+                    uploadFilesList.classList.remove('hidden');
+                    modalUploadProgress.classList.add('hidden');
+                    startUploadBtn.disabled = false;
+                }
+            });
+    }
 </script>
 {% endblock %}

@@ -2,14 +2,6 @@
 {% block title %}可用容器模板{% endblock %}
 
 {% block content %}
-<div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-70 z-40 hidden flex items-center justify-center">
-    <div class="bg-white rounded-lg p-6 max-w-sm w-full text-center">
-        <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-700 mb-4"></div>
-        <h3 class="text-lg font-medium text-gray-800 mb-2">正在创建容器</h3>
-        <p class="text-gray-600">请稍候，容器正在创建中...</p>
-    </div>
-</div>
-
 <div class="max-w-6xl mx-auto mb-8">
     <h1 class="text-[clamp(1.5rem,3vw,2.5rem)] font-semibold text-gray-800 mb-2">可用容器模板</h1>
     <p class="text-gray-500 mb-6">选择以下模板创建新的容器实例</p>
@@ -187,6 +179,14 @@ const modal = document.getElementById('createContainerModal');
 const modalContent = document.getElementById('modalContent');
 const form = document.getElementById('createContainerForm');
 
+function getRandomName() {
+    const adjs = ["clever", "brave", "calm", "eager", "fancy", "gentle", "happy", "jolly", "kind", "lucky", "nice", "proud", "silly", "witty", "zealous", "quick", "bright", "shiny", "bold", "fierce", "mighty", "noble", "swift", "valiant", "wise", "tall", "strong", "brilliant", "daring", "fearless", "graceful", "heroic", "lively", "merry", "nifty", "plucky", "sassy", "spirited", "zesty"];
+    const nouns = ["lion", "tiger", "bear", "eagle", "shark", "wolf", "fox", "owl", "hawk", "panther", "dragon", "phoenix", "griffin", "unicorn", "pegasus", "dolphin", "whale", "falcon", "cobra", "viper", "stallion", "mustang", "cougar", "leopard", "cheetah", "jaguar", "lynx", "otter", "badger", "beaver", "raven", "sparrow", "finch", "swallow", "robin", "swan", "crane", "heron", "ibis", "flamingo", "parrot", "toucan"];
+    const adj = adjs[Math.floor(Math.random() * adjs.length)];
+    const noun = nouns[Math.floor(Math.random() * nouns.length)];
+    const number = Math.floor(Math.random() * 1000);
+    return `${adj}-${noun}-${number}`;
+}
 // 打开创建容器模态框
 function openCreateModal(templateId) {
     // 填充模板信息
@@ -202,7 +202,7 @@ function openCreateModal(templateId) {
     document.getElementById('templateId').value = template.id;
     
     // 生成默认容器名称
-    const defaultName = `${template.name}-${Math.floor(Math.random() * 1000)}`;
+    const defaultName = getRandomName();
     document.getElementById('containerName').value = defaultName;
     
     // 显示模态框并添加动画
@@ -247,24 +247,24 @@ form.addEventListener('submit', function(e) {
         return;
     }
     
-    // 显示加载遮罩，阻止用户操作
-    loadingOverlay.classList.remove('hidden');
+    showLoader('正在创建容器', '请稍候，容器正在创建中...');
     
     fetch('/container/create', {
         method: 'POST',
         body: new FormData(form)
     }).then(response => response.json()).then(data => {
-        loadingOverlay.classList.add('hidden');
+        hideLoader();
         if (data.success) {
-            showToast('操作成功', '容器创建成功', 'success', function() {
-                window.location.href = data.redirect;
-            });
+            showToast('操作成功', '容器创建成功', 'success');
             closeCreateModal();
+            setInterval(function() {
+                window.location.href = data.redirect;
+            }, 1000);
         } else {
             showToast('出错啦', data.message, 'error');
         }
     }).catch(error => {
-        loadingOverlay.classList.add('hidden');
+        hideLoader();
         console.error('Error creating container:', error);
         showToast('出错啦', '请求失败，请稍后重试', 'error');
     });

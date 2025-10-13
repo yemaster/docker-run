@@ -21,6 +21,7 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
 
 HOST_IP = os.environ.get('HOST_IP', '127.0.0.1')
+MAX_EDIT_SIZE = int(os.environ.get('MAX_EDIT_SIZE', 100 * 1024))
 
 socketio = SocketIO(app,
         cors_allowed_origins='*',
@@ -244,6 +245,9 @@ def create_container():
     
     if container_name == '':
         container_name = f"{template['name']}_{random.randint(1000,9999)}"
+    
+    if not all(c.isalnum() or c in ('_', '-') for c in container_name):
+        return {'success': False, 'message': '容器名称只能包含字母、数字、下划线和中划线'}
 
     # 自动分配主机端口
     used_ports = [c['host_port'] for c in execute_query('SELECT host_port FROM containers WHERE status != "removed"')]
@@ -396,7 +400,7 @@ def container_logs(cont_id):
 
     # 联合查询获取模板信息
     cont = select_one('''
-        SELECT c.*, t.name AS template_name, t.image, t.cpu_limit, t.mem_limit, t.disk_limit, t.tags, t.container_port
+        SELECT c.*, t.name AS template_name, t.image, t.cpu_limit, t.mem_limit, t.disk_limit, t.tags, t.container_port, t.description
         FROM containers c
         JOIN templates t ON c.template_id = t.id
         WHERE c.id = %s AND c.status != "removed"
@@ -413,7 +417,7 @@ def container_terminal(cont_id):
     is_admin = 'admin' in session
     # 联合查询获取模板信息
     cont = select_one('''
-        SELECT c.*, t.name AS template_name, t.image, t.cpu_limit, t.mem_limit, t.disk_limit, t.tags, t.container_port, t.available_command
+        SELECT c.*, t.name AS template_name, t.image, t.cpu_limit, t.mem_limit, t.disk_limit, t.tags, t.container_port, t.available_command, t.description
         FROM containers c
         JOIN templates t ON c.template_id = t.id
         WHERE c.id = %s AND c.status != "removed"
@@ -429,7 +433,7 @@ def container_files(cont_id):
     is_admin = 'admin' in session
     # 联合查询获取模板信息
     cont = select_one('''
-        SELECT c.*, t.name AS template_name, t.image, t.cpu_limit, t.mem_limit, t.disk_limit, t.tags, t.container_port
+        SELECT c.*, t.name AS template_name, t.image, t.cpu_limit, t.mem_limit, t.disk_limit, t.tags, t.container_port, t.description
         FROM containers c
         JOIN templates t ON c.template_id = t.id
         WHERE c.id = %s AND c.status != "removed"
@@ -447,7 +451,7 @@ def container_files_action(cont_id, action):
     is_admin = 'admin' in session
     # 联合查询获取模板信息
     cont = select_one('''
-        SELECT c.*, t.name AS template_name, t.image, t.cpu_limit, t.mem_limit, t.disk_limit, t.tags, t.container_port
+        SELECT c.*, t.name AS template_name, t.image, t.cpu_limit, t.mem_limit, t.disk_limit, t.tags, t.container_port, t.description
         FROM containers c
         JOIN templates t ON c.template_id = t.id
         WHERE c.id = %s AND c.status != "removed"
@@ -494,18 +498,21 @@ def container_files_action(cont_id, action):
                     continue
                     
                 # 获取文件类型
-                entry_type = 'dir' if entry.is_dir() else 'file'
+                try:
+                    entry_type = 'dir' if entry.is_dir() else 'file'
                 
-                # 获取创建时间
-                stat_info = entry.stat()
-                created_time = datetime.fromtimestamp(stat_info.st_ctime)
-                
-                files.append({
-                    'type': entry_type,
-                    'name': entry.name,
-                    'size': stat_info.st_size,
-                    'created_time': created_time
-                })
+                    # 获取创建时间
+                    stat_info = entry.stat()
+                    created_time = datetime.fromtimestamp(stat_info.st_ctime)
+                    
+                    files.append({
+                        'type': entry_type,
+                        'name': entry.name,
+                        'size': stat_info.st_size,
+                        'created_time': created_time
+                    })
+                except Exception as e:
+                    pass
             return {
                 'success': True,
                 'files': files
@@ -528,14 +535,32 @@ def container_files_action(cont_id, action):
                     'success': False,
                     'message': '文件不存在'
                 }
-            with open(file_path, 'rb') as f:
-                content = f.read()
-            encoded_content = base64.b64encode(content).decode('utf-8')
-            return {
-                'success': True,
-                'filename': filename,
-                'content_base64': encoded_content
-            }
+            if action == 'view':
+                if os.path.getsize(file_path) > MAX_EDIT_SIZE:
+                    return {
+                        'success': False,
+                        'message': f'文件过大，仅支持编辑小于 {MAX_EDIT_SIZE // 1024} KB 的文件'
+                    }
+                with open(file_path, 'rb') as f:
+                    content = f.read()
+                encoded_content = base64.b64encode(content).decode('utf-8')
+                return {
+                    'success': True,
+                    'filename': filename,
+                    'content_base64': encoded_content
+                }
+            else:  # download
+                def generate():
+                    with open(file_path, 'rb') as f:
+                        while True:
+                            chunk = f.read(4096)
+                            if not chunk:
+                                break
+                            yield chunk
+                response = app.response_class(generate(), mimetype='application/octet-stream')
+                response.headers.set('Content-Disposition', 'attachment', filename=filename)
+                response.headers.set('Content-Length', os.path.getsize(file_path))
+                return response
 
         if request.method == "POST":
             if action == "edit":
@@ -635,6 +660,34 @@ def container_files_action(cont_id, action):
                     'success': True,
                     'message': '创建成功'
                 }
+            elif action == 'upload':
+                if 'file' not in request.files:
+                    return {
+                        'success': False,
+                        'message': '必须提供上传的文件'
+                    }
+                upload_file = request.files['file']
+                if upload_file.filename == '':
+                    return {
+                        'success': False,
+                        'message': '文件名不能为空'
+                    }
+                if '/' in upload_file.filename or '\\' in upload_file.filename:
+                    return {
+                        'success': False,
+                        'message': '文件名不能包含路径分隔符'
+                    }
+                file_path = os.path.join(host_path, upload_file.filename)
+                if not file_path.startswith(overlay_mount):
+                    return {
+                        'success': False,
+                        'message': '无效的文件路径'
+                    }
+                upload_file.save(file_path)
+                return {
+                    'success': True,
+                    'message': '上传成功'
+                }
         
     except docker.errors.NotFound:
         return {
@@ -647,38 +700,38 @@ def container_files_action(cont_id, action):
             'message': str(e)
         }
 
-@app.route('/manage_container/<int:cont_id>/<action>', methods=['GET', 'POST'])
+@app.route('/container/<int:cont_id>/manage/<action>', methods=['GET', 'POST'])
 def manage_container(cont_id, action):
     user_id = get_user_id()
     is_admin = 'admin' in session
     cont = select_one('SELECT * FROM containers WHERE id = %s AND status != "removed"', (cont_id,))
     if not cont or (not is_admin and cont['user_id'] != user_id):
-        flash('无权限')
-        return redirect(url_for('containers'))
+        return {'success': False, 'message': '无权限'}
 
     try:
         docker_cont = docker_client.containers.get(cont['docker_id'])
         if action == 'start':
             docker_cont.start()
+            execute_query('UPDATE containers SET status = %s WHERE id = %s', (docker_cont.status, cont_id))
         elif action == 'stop':
             docker_cont.stop()
+            execute_query('UPDATE containers SET status = %s WHERE id = %s', (docker_cont.status, cont_id))
         elif action == 'remove':
             execute_query('UPDATE containers SET status = %s WHERE id = %s', ('removed', cont_id))
             docker_cont.remove(force=True)
         elif action == 'extend':
-            # 容器剩余时间小于10分钟才能延长
-            remaining = datetime.fromisoformat(cont['destroy_time']) - datetime.now()
-            if remaining > timedelta(minutes=10):
+            remaining = cont['destroy_time'] - datetime.now()
+            if remaining > timedelta(minutes=20):
                 return {
                     'success': False,
-                    'message': '只有剩余时间少于10分钟才能延长'
+                    'message': '只有剩余时间少于20分钟才能延长'
                 }
             if cont['extended_times'] >= 2:
                 return {
                     'success': False,
                     'message': '每个容器最多只能延长2次'
                 }
-            new_destroy_time = datetime.fromisoformat(cont['destroy_time']) + timedelta(hours=1)
+            new_destroy_time = cont['destroy_time'] + timedelta(hours=1)
             execute_query('UPDATE containers SET destroy_time = %s, extended_times = extended_times + 1 WHERE id = %s',
                        (new_destroy_time.isoformat(), cont_id))
             log_action(f'Extend container {cont["docker_id"]}', user_id)
@@ -688,12 +741,10 @@ def manage_container(cont_id, action):
                 'new_destroy_time': new_destroy_time.isoformat()
             }
         
-        execute_query('UPDATE containers SET status = %s WHERE id = %s', (docker_cont.status, cont_id))
         log_action(f'{action} container {cont["docker_id"]}', user_id)
-        flash(f'{action} 成功')
+        return {'success': True, 'message': f'操作 {action} 成功', 'redirect': url_for('containers')}
     except Exception as e:
-        flash(f'操作失败: {str(e)}')
-    return redirect(url_for('containers'))
+        return {'success': False, 'message': f'操作失败: {str(e)}'}
 
 @app.route('/logs')
 @admin_required
@@ -779,8 +830,12 @@ def start_terminal(data):
     
     for session_id, session_info in terminal_sessions.items():
         if session_info['container_id'] == container_id:
-            session_info['socket']._sock.close()
-            print(f"Closed previous terminal session {session_id} for container {session_info['container_id']}")
+            # Kill exec id
+            try:
+                session_info['socket']._sock.close()
+                print(f"Closed previous terminal session {session_id} for container {session_info['container_id']}")
+            except Exception as e:
+                print(f"Error closing previous session {session_id}: {str(e)}")
     
     try:
         user_id = get_user_id()
