@@ -127,18 +127,24 @@
 <script src="/static/js/container.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js"></script>
 <script>
-    const socket = io('/logs', {
-        withCredentials: true,
-    });
+    showLoader();
+    const socket = io('/logs', { transports: ['websocket'] });
 
     socket.on('connect', () => {
+        hideLoader();
         console.log('Connected to WebSocket server');
         socket.emit('start_logs', { container_id: {{ container.id }} });
+    });
+
     socket.on('log_message', (data) => {
         const logContainer = document.getElementById('log-container');
         logContainer.innerText += data;
         logContainer.scrollTop = logContainer.scrollHeight;  // 自动滚动到底部
     });
-});
+
+    socket.on('disconnect', () => {
+        showLoader("断开连接了", "与服务器断开连接，正在尝试重新连接...");
+        console.log('Disconnected from WebSocket server');
+    });
 </script>
 {% endblock %}

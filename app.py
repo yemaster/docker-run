@@ -775,10 +775,6 @@ def handle_start_logs(data):
 
     try:
         container = docker_client.containers.get(cont['docker_id'])
-        # 先获取最近的100行日志
-        logs = container.logs(tail=100).decode('utf-8')
-        emit('log_message', logs, namespace='/logs')
-        # 然后持续获取新的日志
         for log in container.logs(stream=True, follow=True):
             emit('log_message', log.decode('utf-8'), namespace='/logs')
     except docker.errors.NotFound:
@@ -863,7 +859,6 @@ def start_terminal(data):
             docker_client.api.exec_resize(exec_id, width=cols, height=rows)
         except docker.errors.DockerException as resize_error:
             print(f"Initial resize failed (common): {resize_error}")
-            # 可选：重试
             time.sleep(0.2)
             try:
                 docker_client.api.exec_resize(exec_id, width=cols, height=rows)
