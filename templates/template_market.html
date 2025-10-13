@@ -1,0 +1,312 @@
+{% extends "base.html" %}
+{% block title %}可用容器模板{% endblock %}
+
+{% block content %}
+<div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-70 z-40 hidden flex items-center justify-center">
+    <div class="bg-white rounded-lg p-6 max-w-sm w-full text-center">
+        <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-gray-700 mb-4"></div>
+        <h3 class="text-lg font-medium text-gray-800 mb-2">正在创建容器</h3>
+        <p class="text-gray-600">请稍候，容器正在创建中...</p>
+    </div>
+</div>
+
+<div class="max-w-6xl mx-auto mb-8">
+    <h1 class="text-[clamp(1.5rem,3vw,2.5rem)] font-semibold text-gray-800 mb-2">可用容器模板</h1>
+    <p class="text-gray-500 mb-6">选择以下模板创建新的容器实例</p>
+    
+    <!-- 搜索和标签筛选区域 -->
+    <div class="mb-8">
+        <!-- 搜索框 -->
+        <div class="relative max-w-md mb-6">
+            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                <i class="fa fa-search"></i>
+            </span>
+            <input 
+                type="text" 
+                id="templateSearch" 
+                placeholder="搜索模板名称..." 
+                class="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all duration-200"
+                oninput="filterTemplates()"
+            >
+        </div>
+        
+        <!-- 标签筛选 -->
+        {% if all_tags %}
+        <div class="flex flex-wrap gap-2 mb-2">
+            <span class="text-sm text-gray-500 mt-1 mr-2">标签筛选:</span>
+            <button 
+                class="tag-filter px-3 py-1 bg-gray-700 text-white text-sm rounded-full hover:bg-gray-800 transition-colors duration-200"
+                data-tag=""
+                onclick="filterByTag('')"
+            >
+                全部
+            </button>
+            {% for tag in all_tags %}
+            <button 
+                class="tag-filter px-3 py-1 bg-gray-200 text-gray-700 text-sm rounded-full hover:bg-gray-300 transition-colors duration-200"
+                data-tag="{{ tag }}"
+                onclick="filterByTag('{{ tag }}')"
+            >
+                {{ tag }}
+            </button>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+    
+    {% if templates %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" id="templatesContainer">
+        {% for temp in templates %}
+        <div class="template-card bg-white border border-gray-200 rounded-lg p-5 shadow-sm hover:shadow-md transition-shadow duration-300"
+             data-name="{{ temp['name'] | lower }}"
+             data-tags="{{ temp['tags'] | join(',') | lower }}">
+            <div class="flex justify-between items-start mb-3">
+                <h3 class="font-medium text-gray-800">{{ temp['name'] }}</h3>
+                <span class="bg-gray-200 text-gray-700 text-xs px-2 py-1 rounded-full">
+                    端口: {{ temp['container_port'] }}
+                </span>
+            </div>
+            
+            <!-- 模板标签 -->
+            {% if temp['tags'] and temp['tags']|length > 0 %}
+            <div class="flex flex-wrap gap-2 mb-4">
+                {% for tag in temp['tags'].split(",") %}
+                <span class="inline-block bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded">
+                    {{ tag }}
+                </span>
+                {% endfor %}
+            </div>
+            {% endif %}
+            
+            <div class="flex justify-end">
+                <button 
+                    class="inline-flex items-center text-sm bg-gray-700 text-white px-4 py-2 rounded hover:bg-gray-800 transition-colors duration-200"
+                    onclick="openCreateModal({{ temp['id'] }})"
+                >
+                    <i class="fa fa-plus-circle mr-2"></i>创建容器
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    
+    <!-- 无搜索结果提示 -->
+    <div id="noResults" class="hidden bg-gray-50 border border-gray-200 rounded-lg p-6 text-center mt-6">
+        <p class="text-gray-500">未找到匹配的模板</p>
+    </div>
+    
+    {% else %}
+    <div class="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+        <p class="text-gray-500">暂无可用的容器模板</p>
+    </div>
+    {% endif %}
+</div>
+
+<!-- 创建容器的模态框 -->
+<div id="createContainerModal" class="fixed inset-0 bg-black bg-opacity-50 z-10 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-lg shadow-lg max-w-md w-full mx-auto transform transition-all duration-150 scale-95 opacity-0" id="modalContent">
+        <div class="p-6 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-800" id="modalTitle">创建容器</h3>
+        </div>
+        
+        <div class="p-6">
+            <form id="createContainerForm" method="post">
+                <!-- 模板信息展示 -->
+                <div class="mb-5">
+                    <h4 class="font-medium text-gray-700 mb-3">模板介绍</h4>
+                    <div class="space-y-2 text-sm" id="templateDescription"></div>
+                </div>
+
+                <div class="mb-5">
+                    <h4 class="font-medium text-gray-700 mb-3">模板信息</h4>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">容器镜像:</span>
+                            <span class="text-gray-800" id="templateImage">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">CPU 限制:</span>
+                            <span class="text-gray-800" id="templateCpu">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">内存限制:</span>
+                            <span class="text-gray-800" id="templateMem">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">磁盘限制:</span>
+                            <span class="text-gray-800" id="templateDisk">-</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-gray-500">容器端口:</span>
+                            <span class="text-gray-800" id="templatePort">-</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 容器名称输入 -->
+                <div class="mb-5">
+                    <label for="containerName" class="block text-sm font-medium text-gray-700 mb-1">容器名称</label>
+                    <input 
+                        type="text" 
+                        id="containerName" 
+                        name="container_name" 
+                        placeholder="输入容器名称" 
+                        class="w-full px-3 py-2.5 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all"
+                        required
+                    >
+                    <p class="text-xs text-gray-500 mt-1">请为您的容器指定一个名称，便于识别和管理</p>
+                </div>
+                
+                <!-- 隐藏的模板ID字段 -->
+                <input type="hidden" id="templateId" name="template_id" value="">
+                
+                <div class="flex justify-end gap-3">
+                    <button 
+                        type="button" 
+                        class="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 transition-colors duration-200"
+                        onclick="closeCreateModal()"
+                    >
+                        取消
+                    </button>
+                    <button 
+                        type="submit" 
+                        class="px-4 py-2 bg-gray-700 text-white rounded-md hover:bg-gray-800 transition-colors duration-200"
+                    >
+                        确认创建
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+const templates = {{ templates | tojson }};
+
+const modal = document.getElementById('createContainerModal');
+const modalContent = document.getElementById('modalContent');
+const form = document.getElementById('createContainerForm');
+
+// 打开创建容器模态框
+function openCreateModal(templateId) {
+    // 填充模板信息
+    const template = templates.find(t => t.id === templateId);
+    if (!template) return;
+    document.getElementById('modalTitle').textContent = `基于 ${template.name} 创建容器`;
+    document.getElementById('templateDescription').innerHTML = template.description ? template.description.replace(/\n/g, '<br>') : '<p class="text-gray-500">无描述信息</p>';
+    document.getElementById('templateImage').textContent = template.image;
+    document.getElementById('templateCpu').textContent = template.cpu_limit;
+    document.getElementById('templateMem').textContent = template.mem_limit;
+    document.getElementById('templateDisk').textContent = template.disk_limit;
+    document.getElementById('templatePort').textContent = template.container_port;
+    document.getElementById('templateId').value = template.id;
+    
+    // 生成默认容器名称
+    const defaultName = `${template.name}-${Math.floor(Math.random() * 1000)}`;
+    document.getElementById('containerName').value = defaultName;
+    
+    // 显示模态框并添加动画
+    modal.classList.remove('hidden');
+    setTimeout(() => {
+        modalContent.classList.remove('scale-95', 'opacity-0');
+        modalContent.classList.add('scale-100', 'opacity-100');
+    }, 10);
+    
+    // 聚焦到输入框
+    document.getElementById('containerName').focus();
+}
+
+// 关闭创建容器模态框
+function closeCreateModal() {
+    // 添加关闭动画
+    modalContent.classList.remove('scale-100', 'opacity-100');
+    modalContent.classList.add('scale-95', 'opacity-0');
+    
+    // 隐藏模态框
+    setTimeout(() => {
+        modal.classList.add('hidden');
+    }, 150);
+}
+
+// 点击模态框外部关闭
+modal.addEventListener('click', function(e) {
+    if (e.target === modal) {
+        closeCreateModal();
+    }
+});
+
+// 表单提交处理
+form.addEventListener('submit', function(e) {
+    // 阻止表单默认提交
+    e.preventDefault();
+    
+    // 验证容器名称
+    const containerName = document.getElementById('containerName').value.trim();
+    if (!containerName) {
+        showToast('输入错误', '请输入容器名称', 'error');
+        return;
+    }
+    
+    // 显示加载遮罩，阻止用户操作
+    loadingOverlay.classList.remove('hidden');
+    
+    fetch('/container/create', {
+        method: 'POST',
+        body: new FormData(form)
+    }).then(response => response.json()).then(data => {
+        loadingOverlay.classList.add('hidden');
+        if (data.success) {
+            showToast('操作成功', '容器创建成功', 'success', function() {
+                window.location.href = data.redirect;
+            });
+            closeCreateModal();
+        } else {
+            showToast('出错啦', data.message, 'error');
+        }
+    }).catch(error => {
+        loadingOverlay.classList.add('hidden');
+        console.error('Error creating container:', error);
+        showToast('出错啦', '请求失败，请稍后重试', 'error');
+    });
+});
+
+// 筛选模板函数
+function filterTemplates() {
+    const searchTerm = document.getElementById('templateSearch').value.toLowerCase().trim();
+    const activeTag = document.querySelector('.tag-filter.bg-gray-700')?.getAttribute('data-tag') || '';
+    const cards = document.querySelectorAll('.template-card');
+    let hasResults = false;
+    
+    cards.forEach(card => {
+        const name = card.getAttribute('data-name');
+        const tags = card.getAttribute('data-tags');
+        const matchesSearch = name.includes(searchTerm);
+        const matchesTag = activeTag === '' || tags.includes(activeTag.toLowerCase());
+        
+        if (matchesSearch && matchesTag) {
+            card.style.display = 'block';
+            hasResults = true;
+        } else {
+            card.style.display = 'none';
+        }
+    });
+    
+    document.getElementById('noResults').style.display = hasResults ? 'none' : 'block';
+}
+
+// 按标签筛选
+function filterByTag(tag) {
+    document.querySelectorAll('.tag-filter').forEach(btn => {
+        if (btn.getAttribute('data-tag') === tag) {
+            btn.classList.remove('bg-gray-200', 'text-gray-700');
+            btn.classList.add('bg-gray-700', 'text-white');
+        } else {
+            btn.classList.remove('bg-gray-700', 'text-white');
+            btn.classList.add('bg-gray-200', 'text-gray-700');
+        }
+    });
+    
+    filterTemplates();
+}
+</script>
+{% endblock %}

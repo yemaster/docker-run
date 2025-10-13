@@ -1,0 +1,668 @@
+{% extends "base.html" %}
+{% block title %}容器文件 - {{ container.id }}{% endblock %}
+
+{% block header %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-6">
+    <!-- 顶部信息卡片 -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6 overflow-hidden">
+        <div class="p-6">
+            <div class="flex flex-wrap justify-between items-start gap-4">
+                <div>
+                    <h1 class="text-xl font-semibold text-gray-800 mb-1">容器 #{{ container.name }}</h1>
+                    <p class="text-gray-500 text-sm">Docker ID: {{ container.docker_id[:12] }}</p>
+                </div>
+            </div>
+
+            <div class="mt-6 grid grid-cols-6 gap-4">
+                <div class="col-span-6 md:col-span-4 bg-gray-50 p-4 rounded-md">
+                    <p class="text-sm text-gray-500 mb-1">模板描述</p>
+                    <p class="text-gray-700">{{ container.description or '该容器基于默认模板创建，无详细描述信息。' }}</p>
+                </div>
+
+                <div class="col-span-6 md:col-span-2 bg-gray-50 p-3 rounded-md">
+                    <p class="text-sm text-gray-500 mb-1">端口映射</p>
+                    <div class="flex flex-wrap items-center">
+                        <p class="font-medium text-gray-800 mr-2">
+                            {{ container.host_port }}:{{ container.container_port }}
+                        </p>
+                        <button onclick="visitContainer({{ container.host_port }})"
+                            class="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-200 transition-colors duration-200"
+                            title="访问容器">
+                            <i class="fa fa-external-link"></i>
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">主机:容器</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主内容区 -->
+    <div class="flex flex-col lg:flex-row gap-6">
+        <!-- 左侧菜单 -->
+        <div class="lg:w-64 flex-shrink-0">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6 overflow-hidden">
+                <div class="bg-gray-100">
+                    <h2 class="text-md font-semibold text-gray-800 p-4 border-b border-gray-200">容器时长</h2>
+                </div>
+                <div class="p-4">
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-gray-500">剩余时间:</span>
+                        <span class="text-gray-700 container-expiry" data-expiry="{{ container.destroy_time }}">
+                            计算中...
+                        </span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                        <div class="container-progress h-full rounded-full transition-all duration-1000 ease-in-out"
+                            data-expiry="{{ container.destroy_time }}" style="width: 100%; background-color: #4B5563;">
+                        </div>
+                    </div>
+                    <div class="flex justify-end mt-2">
+                        <button onclick="extendExpiry({{ container.id }})"
+                            class="text-xs px-2.5 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors duration-200">
+                            <i class="fa fa-refresh mr-1"></i> 延期1小时
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <nav class="p-2">
+                    <a href="/container/{{ container.id }}/overview"
+                        class="flex items-center px-4 py-2.5 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-50 mb-1 transition-colors duration-200">
+                        <i class="fa fa-dashboard w-5 mr-3 text-gray-500"></i>
+                        总览
+                    </a>
+
+                    <a href="/container/{{ container.id }}/logs"
+                        class="flex items-center px-4 py-2.5 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-50 mb-1 transition-colors duration-200">
+                        <i class="fa fa-history w-5 mr-3 text-gray-500"></i>
+                        日志
+                    </a>
+
+                    <a href="/container/{{ container.id }}/terminal"
+                        class="flex items-center px-4 py-2.5 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-50 transition-colors duration-200 mb-1">
+                        <i class="fa fa-terminal w-5 mr-3 text-gray-500"></i>
+                        终端
+                    </a>
+
+                    <a href="/container/{{ container.id }}/files"
+                        class="flex items-center px-4 py-2.5 text-sm font-medium rounded-md bg-gray-100 text-gray-900">
+                        <i class="fa fa-folder-open w-5 mr-3 text-gray-500"></i>
+                        文件管理
+                    </a>
+                </nav>
+
+                <div class="p-4 border-t border-gray-200">
+                    <button onclick="confirmDelete({{ container.id }})"
+                        class="w-full flex items-center justify-center px-4 py-2.5 text-sm font-medium text-red-700 bg-red-50 rounded-md hover:bg-red-100 transition-colors duration-200">
+                        <i class="fa fa-trash mr-2"></i> 删除容器
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧总览内容 -->
+        <div class="flex-1">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <div class="p-6 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-800">容器文件管理</h2>
+                </div>
+
+                <div class="fill-manager">
+                    <div class="loading-mask" id="loading-mask">
+                        <div class="loading-text">加载中</div>
+                    </div>
+                    <div class="file-edit-container hidden flex flex-col h-full" id="fileEditorContainer">
+                        <div class="p-4 border-b border-gray-200 flex justify-between items-center">
+                            <h3 class="text-md font-semibold text-gray-800" id="editingFileName">编辑文件</h3>
+                            <div class="flex space-x-2">
+                                <button id="saveFileBtn" onclick="saveFile()"
+                                    class="px-3 py-1.5 bg-gray-700 text-white rounded-md hover:bg-gray-800 transition-colors duration-200">
+                                    保存
+                                </button>
+                                <button id="cancelEditBtn" onclick="closeEditor()"
+                                    class="px-3 py-1.5 bg-gray-300 text-gray-800 rounded-md hover:bg-gray-400 transition-colors duration-200">
+                                    取消
+                                </button>
+                            </div>
+                        </div>
+                        <textarea id="fileEditor"
+                            class="flex-1 w-full p-4 text-sm font-mono text-gray-800 border-0 focus:outline-none focus:ring-0 resize-none bg-white"
+                            style="min-height: 0;"></textarea>
+                    </div>
+
+                    <div class="px-6 py-3 bg-gray-50 border-b border-gray-100">
+                        <div class="flex items-center text-sm">
+                            <button class="text-gray-600 hover:text-gray-900 p-1 mr-1" onclick="enterDirectory('/')">
+                                <i class="fa fa-folder-open-o"></i>
+                            </button>
+
+                            <div id="pathContainer"></div>
+
+                            <!-- 当前路径指示器 -->
+                            <div class="flex-1 ml-2 h-4"></div>
+
+                            <!-- 路径操作按钮 -->
+                            <div class="ml-4 flex space-x-2">
+                                <button class="text-gray-500 hover:text-gray-700 p-1" title="刷新"
+                                    onclick="getFileList(nowDir)">
+                                    <i class="fa fa-refresh"></i>
+                                </button>
+                                <button class="text-gray-500 hover:text-gray-700 p-1" title="向上一级"
+                                    onclick="enterDirectory('..')">
+                                    <i class="fa fa-level-up"></i>
+                                </button>
+                                <!--button class="text-gray-500 hover:text-gray-700 p-1" title="复制路径">
+                                    <i class="fa fa-copy"></i>
+                                </button-->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 工具栏 -->
+                    <div class="px-6 py-4 border-b border-gray-100 flex flex-wrap justify-between items-center gap-3">
+                        <div class="flex flex-wrap gap-2">
+                            <button id="newFolderBtn" onclick="createNew('dir')"
+                                class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors duration-200">
+                                <i class="fa fa-folder mr-2"></i> 新建文件夹
+                            </button>
+                            <button id="newFileBtn" onclick="createNew('file')"
+                                class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors duration-200">
+                                <i class="fa fa-file mr-2"></i> 新建文件
+                            </button>
+                        </div>
+
+                        <div class="relative">
+                            <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                                <i class="fa fa-search"></i>
+                            </span>
+                            <input type="text" placeholder="搜索文件或文件夹..."
+                                class="pl-10 pr-3 py-1.5 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all w-full md:w-64">
+                        </div>
+                    </div>
+
+                    <!-- 文件列表 -->
+                    <div class="h-96 overflow-auto">
+                        <table class="min-w-full divide-y divide-gray-100">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col"
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/2">
+                                        名称</th>
+                                    <th scope="col"
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        创建时间</th>
+                                    <th scope="col"
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        大小</th>
+                                    <th scope="col"
+                                        class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                        操作</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-100" id="fileTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<style>
+    .fill-manager {
+        position: relative;
+    }
+
+    .loading-mask {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(5px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease;
+    }
+
+    .file-edit-container {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: #fff;
+        z-index: 5;
+    }
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 访问容器函数
+    function visitContainer(port) {
+        // 假设容器通过localhost和指定端口访问
+        const url = `http://{{host_ip}}:${port}`;
+        // 打开新窗口访问容器
+        window.open(url, '_blank');
+    }
+
+    // 容器删除确认功能
+    function confirmDelete(containerId) {
+        if (confirm(`确定要删除容器 #${containerId} 吗？此操作不可撤销，所有数据将丢失。`)) {
+            // 如果用户确认，跳转到删除接口
+            window.location.href = `/manage_container/${containerId}/remove`;
+        }
+    }
+</script>
+<script>
+    // 延期功能
+    function extendExpiry(containerId) {
+        if (confirm(`确定要将容器 #${containerId} 延期2小时吗？`)) {
+            fetch(`/manage_container/${containerId}/extend`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('操作成功', '容器已延期1小时', 'success');
+                        // 更新剩余时间显示
+                        const expiryEl = document.querySelector('.container-expiry');
+                        expiryEl.setAttribute('data-expiry', data.new_destroy_time);
+                        updateAllExpiry();
+                    } else {
+                        showToast('出错啦', data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error extending container expiry:', error);
+                    showToast('出错啦', '请求失败，请稍后重试', 'error');
+                });
+        }
+    }
+
+    // 格式化时间（将毫秒转换为小时:分钟:秒）
+    function formatTime(ms) {
+        if (ms <= 0) return "已过期";
+
+        const hours = Math.floor(ms / (1000 * 60 * 60));
+        const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((ms % (1000 * 60)) / 1000);
+
+        return `${hours}h ${minutes}m ${seconds}s`;
+    }
+
+    // 更新所有容器的剩余时间和进度条
+    function updateAllExpiry() {
+        const now = new Date().getTime();
+        const totalDuration = 2 * 60 * 60 * 1000; // 2小时的总毫秒数
+
+        document.querySelectorAll('.container-expiry').forEach(el => {
+            const expiryTime = new Date(el.getAttribute('data-expiry')).getTime();
+            const remaining = expiryTime - now;
+            el.textContent = formatTime(remaining);
+        });
+
+        document.querySelectorAll('.container-progress').forEach(el => {
+            const expiryTime = new Date(el.getAttribute('data-expiry')).getTime();
+            const createdAt = new Date(expiryTime - totalDuration).getTime();
+            const remaining = expiryTime - now;
+            const elapsed = now - createdAt;
+
+            // 计算进度百分比
+            let percentage = (remaining / totalDuration) * 100;
+            percentage = Math.max(0, Math.min(100, percentage));
+
+            // 设置进度条宽度
+            el.style.width = `${percentage}%`;
+
+            // 根据剩余时间改变进度条颜色
+            if (percentage < 20) {
+                el.style.backgroundColor = '#EF4444'; // 红色 - 即将过期
+            } else if (percentage < 50) {
+                el.style.backgroundColor = '#F59E0B'; // 黄色 - 剩余时间不多
+            } else {
+                el.style.backgroundColor = '#4B5563'; // 深灰色 - 正常
+            }
+        });
+    }
+
+    function base64Encode(str) {
+        const encoder = new TextEncoder();
+        const uint8Array = encoder.encode(str);
+
+        let binary = '';
+        uint8Array.forEach(byte => {
+            binary += String.fromCharCode(byte);
+        });
+
+        return btoa(binary);
+    }
+
+    function base64Decode(encodedStr) {
+        try {
+            const binary = atob(encodedStr);
+
+            const uint8Array = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) {
+                uint8Array[i] = binary.charCodeAt(i);
+            }
+
+            const decoder = new TextDecoder();
+            return decoder.decode(uint8Array);
+        } catch (e) {
+            console.error('解码失败:', e);
+            return '';
+        }
+    }
+
+    // 初始化时更新一次
+    updateAllExpiry();
+
+    // 每秒更新一次
+    setInterval(updateAllExpiry, 1000);
+
+    const codeFiles = ['.py', '.js', '.html', '.css', '.json', '.md', '.txt', '.xml', '.yml', '.yaml', '.sh'];
+    const imageFiles = ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.svg', '.webp'];
+
+    let nowDir = "{{ current_path }}";
+    let nowFiles = [];
+
+    function formatSize(bytes) {
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        if (bytes === 0) return '0 B';
+        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+        return (bytes / Math.pow(1024, i)).toFixed(2) + ' ' + sizes[i];
+    }
+
+    function showLoading() {
+        const mask = document.getElementById('loading-mask');
+        mask.style.opacity = '1';
+        mask.style.visibility = 'visible';
+    }
+
+    function hideLoading() {
+        const mask = document.getElementById('loading-mask');
+        mask.style.opacity = '0';
+        setTimeout(() => {
+            mask.style.visibility = 'hidden';
+        }, 300);
+    }
+
+    function getFileList(path) {
+        showLoading();
+        fetch(`/container/{{ container.id }}/files/get_list?path=${encodeURIComponent(path)}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    nowFiles = data.files;
+                    renderFileTable(nowFiles);
+                } else {
+                    showToast('出错啦', data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching file list:', error);
+                showToast('出错啦', error, 'error');
+            }).finally(() => {
+                hideLoading();
+            });
+    }
+
+    function pathJoin(...parts) {
+        const fullPath = parts.join('/');
+        const normalizedPath = fullPath.replace(/[\\\/]+/g, '/');
+        const segments = normalizedPath.split('/');
+        const resolvedSegments = [];
+        let out = 0;
+        for (const segment of segments) {
+            if (segment === '.') continue;
+            if (segment === '..') {
+                if (resolvedSegments.length > 0) resolvedSegments.pop();
+                else out++;
+            } else {
+                resolvedSegments.push(segment);
+            }
+        }
+        if (out > 0) {
+            resolvedSegments.unshift(...Array(out).fill('..'));
+        }
+        return resolvedSegments.join('/');
+    }
+
+    function renderCurrentPath() {
+        const pathContainer = document.getElementById('pathContainer');
+        const parts = nowDir.split('/').slice(1);
+        let currentPath = '';
+        pathContainer.innerHTML = '';
+
+        parts.forEach((part, index) => {
+            currentPath += '/' + part;
+
+            const seperater = document.createElement('span');
+            seperater.className = 'text-gray-400 mx-1';
+            seperater.textContent = '/';
+            pathContainer.appendChild(seperater);
+
+            const btn = document.createElement('button');
+            btn.className = 'text-gray-700 hover:text-gray-900 hover:underline p-1 mr-1 path-item';
+            btn.textContent = part;
+            btn.setAttribute('data-path', currentPath);
+            btn.onclick = () => {
+                enterDirectory(btn.getAttribute('data-path'))
+            };
+            pathContainer.appendChild(btn);
+        });
+    }
+
+    function openFileId(fileId) {
+        const file = nowFiles[fileId];
+        if (file.type === 'dir') {
+            enterDirectory(file.name);
+        } else {
+            openFile(file.name);
+        }
+    }
+
+    function enterDirectory(dirName) {
+        if (dirName.startsWith('/')) {
+            nowDir = dirName;
+        } else {
+            nowDir = pathJoin(nowDir, dirName);
+        }
+        getFileList(nowDir);
+        renderCurrentPath();
+    }
+
+    function downloadFile(fileName) {
+        fetch("/container/{{ container.id }}/files/download?path=" + encodeURIComponent(nowDir) + "&file=" + encodeURIComponent(fileName))
+            .then(response => response.json())
+            .then(r => {
+                if (r.success) {
+                    const link = document.createElement('a');
+                    link.href = 'data:application/octet-stream;base64,' + r.content_base64;
+                    link.download = fileName;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    showToast('操作成功', '文件下载已开始', 'success');
+                } else {
+                    showToast('出错啦', r.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error downloading file:', error);
+                showToast('出错啦', error.message, 'error');
+            });
+    }
+
+    function openFile(fileName) {
+        fileEditContainer = document.getElementById('fileEditorContainer');
+        fileEditContainer.classList.remove('hidden');
+        document.getElementById('editingFileName').textContent = fileName;
+        showLoading();
+        document.getElementById('fileEditor').value = '';
+
+        fetch("/container/{{ container.id }}/files/view?path=" + encodeURIComponent(nowDir) + "&file=" + encodeURIComponent(fileName))
+            .then(response => response.json())
+            .then(r => {
+                if (r.success) {
+                    const content = base64Decode(r.content_base64);
+                    document.getElementById('fileEditor').value = content;
+                } else {
+                    showToast('出错啦', r.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error getting file content:', error);
+                showToast('出错啦', error.message, 'error');
+            })
+            .finally(() => {
+                hideLoading();
+            });
+    }
+
+    function saveFile() {
+        const fileName = document.getElementById('editingFileName').textContent;
+        const content = document.getElementById('fileEditor').value;
+        const encodedContent = base64Encode(content);
+
+        fetch("/container/{{ container.id }}/files/edit?path=" + encodeURIComponent(nowDir) + "&file=" + encodeURIComponent(fileName), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ content_base64: encodedContent }),
+        })
+            .then(response => response.json())
+            .then(r => {
+                if (r.success) {
+                    showToast('操作成功', '文件已保存', 'success');
+                    closeEditor();
+                    enterDirectory(nowDir);
+                } else {
+                    showToast('出错啦', r.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error saving file:', error);
+                showToast('出错啦', error.message, 'error');
+            });
+    }
+
+    function closeEditor() {
+        fileEditContainer = document.getElementById('fileEditorContainer');
+        fileEditContainer.classList.add('hidden');
+    }
+
+    function deleteFile(fileName) {
+        showConfirm("真的吗", "真的要删除 " + fileName + " 吗？此操作不可撤销！", function (confirmed) {
+            if (confirmed) {
+                fetch("/container/{{ container.id }}/files/delete?path=" + encodeURIComponent(nowDir) + "&file=" + encodeURIComponent(fileName), {
+                    method: 'POST',
+                })
+                    .then(response => response.json())
+                    .then(r => {
+                        if (r.success) {
+                            showToast('操作成功', '文件已删除', 'success');
+                            enterDirectory(nowDir);
+                        } else {
+                            showToast('出错啦', r.message, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error deleting file:', error);
+                        showToast('出错啦', error.message, 'error');
+                    });
+            }
+        });
+    }
+
+    function createNew(type) {
+        const label = type === 'file' ? '文件' : '文件夹';
+        showInputConfirm(`新建${label}`, `请输入${label}名称`, function (confirmed, inputValue) {
+            if (confirmed && inputValue) {
+                fetch("/container/{{ container.id }}/files/create?path=" + encodeURIComponent(nowDir) + "&file=" + encodeURIComponent(inputValue) + "&type=" + type, {
+                    method: 'POST',
+                })
+                    .then(response => response.json())
+                    .then(r => {
+                        if (r.success) {
+                            showToast('操作成功', `${label}已创建`, 'success');
+                            enterDirectory(nowDir);
+                        } else {
+                            showToast('出错啦', r.message, 'error');
+                        }
+                    })
+                    .catch(error => {
+                        console.error(`Error creating ${label}:`, error);
+                        showToast('出错啦', error.message, 'error');
+                    });
+            } else {
+                showToast('出错啦', `${label}名称不能为空`, 'error');
+            }
+        });
+    }
+
+    function renderFileTable(files) {
+        const tbody = document.getElementById('fileTableBody');
+        tbody.innerHTML = '';
+
+        files.forEach((file, index) => {
+            const tr = document.createElement('tr');
+            tr.className = 'hover:bg-gray-50 transition-colors duration-150';
+
+            const isDir = file.type === 'dir';
+            const iconClass = isDir ? 'fa-folder text-yellow-500' : (codeFiles.some(ext => file.name.endsWith(ext)) ? 'fa-file-code-o text-blue-500' : (imageFiles.some(ext => file.name.endsWith(ext)) ? 'fa-file-image-o text-green-500' : 'fa-file-text-o text-gray-500'));
+
+            tr.innerHTML = `
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="flex items-center">
+                        <i class="fa ${iconClass} mr-3 text-lg"></i>
+                        <a class="text-gray-800 cursor-pointer" onclick="openFileId(${index})">${file.name}</a>
+                    </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${file.created_time}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">${isDir ? '-' : formatSize(file.size)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <div class="flex space-x-2">
+                        ${isDir ? `
+                            <button class="text-gray-600 hover:text-gray-900 transition-colors" title="进入" onclick="enterDirectory('${file.name}')">
+                                <i class="fa fa-folder-open"></i>
+                            </button>
+                        ` : `
+                            <button class="text-gray-600 hover:text-gray-900 transition-colors" title="编辑" onclick="openFile('${file.name}')">
+                                <i class="fa fa-edit"></i>
+                            </button>
+                            <button class="text-gray-600 hover:text-red-600 transition-colors" title="下载" onclick="downloadFile('${file.name}')">
+                                <i class="fa fa-download"></i>
+                            </button>
+                        `}
+                        <!--button class="text-gray-600 hover:text-gray-900 transition-colors" title="复制">
+                            <i class="fa fa-copy"></i>
+                        </button-->
+                        <!--button class="text-gray-600 hover:text-gray-900 transition-colors" title="剪切">
+                            <i class="fa fa-cut"></i>
+                        </button-->
+                        <button class="text-gray-600 hover:text-red-600 transition-colors" title="删除" onclick="deleteFile('${file.name}')">
+                            <i class="fa fa-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+    }
+
+    getFileList(nowDir);
+    renderCurrentPath();
+</script>
+{% endblock %}

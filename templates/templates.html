@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+{% block title %}模板管理{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <section>
+        <h2 class="text-xl font-semibold text-gray-800 mb-4">模板列表</h2>
+
+        <div class="mb-4">
+            <a href="/template/add"
+                class="inline-flex items-center bg-gray-200 px-5 py-2.5 rounded-lg shadow-sm hover:bg-gray-300 transition-colors duration-200">
+                <i class="fa fa-cubes mr-2"></i>添加模板
+            </a>
+        </div>
+
+        {% if templates %}
+        <div class="overflow-x-auto">
+            <table
+                class="min-w-full divide-y divide-gray-200 rounded-lg overflow-hidden shadow-sm border border-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">模板名称
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">标签
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">CPU
+                            限制</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">内存限制
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">端口
+                        </th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">操作
+                        </th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-100">
+                    {% for temp in templates %}
+                    <tr class="hover:bg-gray-50 transition-colors duration-150">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">{{ temp['name'] }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="flex flex-wrap gap-1">
+                                {% for tag in temp['tags'].split(",") %}
+                                <span class="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded">
+                                    {{ tag }}
+                                </span>
+                                {% endfor %}
+                            </div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ temp['cpu_limit'] }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ temp['mem_limit'] }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{{ temp['container_port'] }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button type="button" onclick="deleteTemplate({{ temp['id'] }})"
+                                class="text-red-600 hover:text-red-800 transition-colors duration-200 flex items-center">
+                                <i class="fa fa-trash mr-1"></i> 删除
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="border border-gray-200 rounded-lg p-6 text-center bg-gray-50">
+            <p class="text-gray-500">暂无模板数据</p>
+        </div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    function deleteTemplate(templateId) {
+        showConfirm("真的吗", "确定要删除这个模板吗？", function() {
+            const formData = new FormData();
+            formData.append('template_id', templateId);
+            fetch('/template/delete', {
+                method: 'POST',
+                body: formData
+            }).then(response => response.json())
+              .then(data => {
+                  if (data.success) {
+                      showToast("成功", data.message, "success", function() {
+                          window.location.href = data.redirect;
+                      });
+                  } else {
+                      showToast("错误", data.message, "error");
+                  }
+              })
+              .catch(error => {
+                  showAlert("错误", "请求失败，请稍后重试。", "error");
+              });
+        });
+    }
+</script>
+{% endblock %}

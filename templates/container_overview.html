@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+{% block title %}容器管理 - {{ container.id }}{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 py-6">
+    <!-- 顶部信息卡片 -->
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6 overflow-hidden">
+        <div class="p-6">
+            <div class="flex flex-wrap justify-between items-start gap-4">
+                <div>
+                    <h1 class="text-xl font-semibold text-gray-800 mb-1">容器 #{{ container.name }}</h1>
+                    <p class="text-gray-500 text-sm">Docker ID: {{ container.docker_id[:12] }}</p>
+                </div>
+            </div>
+
+            <div class="mt-6 grid grid-cols-6 gap-4">
+                <div class="col-span-6 md:col-span-4 bg-gray-50 p-4 rounded-md">
+                    <p class="text-sm text-gray-500 mb-1">模板描述</p>
+                    <p class="text-gray-700">{{ container.description or '该容器基于默认模板创建，无详细描述信息。' }}</p>
+                </div>
+
+                <div class="col-span-6 md:col-span-2 bg-gray-50 p-3 rounded-md">
+                    <p class="text-sm text-gray-500 mb-1">端口映射</p>
+                    <div class="flex flex-wrap items-center">
+                        <p class="font-medium text-gray-800 mr-2">
+                            {{ container.host_port }}:{{ container.container_port }}
+                        </p>
+                        <button onclick="visitContainer({{ container.host_port }})"
+                            class="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-200 transition-colors duration-200"
+                            title="访问容器">
+                            <i class="fa fa-external-link"></i>
+                        </button>
+                    </div>
+                    <p class="text-xs text-gray-500 mt-1">主机:容器</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 主内容区 -->
+    <div class="flex flex-col lg:flex-row gap-6">
+        <!-- 左侧菜单 -->
+        <div class="lg:w-64 flex-shrink-0">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6 overflow-hidden">
+                <div class="bg-gray-100">
+                    <h2 class="text-md font-semibold text-gray-800 p-4 border-b border-gray-200">容器时长</h2>
+                </div>
+                <div class="p-4">
+                    <div class="flex justify-between text-sm mb-1">
+                        <span class="text-gray-500">剩余时间:</span>
+                        <span class="text-gray-700 container-expiry" data-expiry="{{ container.destroy_time }}">
+                            计算中...
+                        </span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                        <div class="container-progress h-full rounded-full transition-all duration-1000 ease-in-out"
+                            data-expiry="{{ container.destroy_time }}" style="width: 100%; background-color: #4B5563;">
+                        </div>
+                    </div>
+                    <div class="flex justify-end mt-2">
+                        <button onclick="extendExpiry({{ container.id }})"
+                            class="text-xs px-2.5 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors duration-200">
+                            <i class="fa fa-refresh mr-1"></i> 延期1小时
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <nav class="p-2">
+                    <a href="/container/{{ container.id }}/overview"
+                        class="flex items-center px-4 py-2.5 text-sm font-medium rounded-md bg-gray-100 text-gray-900 mb-1">
+                        <i class="fa fa-dashboard w-5 mr-3 text-gray-500"></i>
+                        总览
+                    </a>
+
+                    <a href="/container/{{ container.id }}/logs"
+                        class="flex items-center px-4 py-2.5 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-50 mb-1 transition-colors duration-200">
+                        <i class="fa fa-history w-5 mr-3 text-gray-500"></i>
+                        日志
+                    </a>
+
+                    <a href="/container/{{ container.id }}/terminal"
+                        class="flex items-center px-4 py-2.5 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-50 mb-1 transition-colors duration-200">
+                        <i class="fa fa-terminal w-5 mr-3 text-gray-500"></i>
+                        终端
+                    </a>
+
+                    <a href="/container/{{ container.id }}/files"
+                        class="flex items-center px-4 py-2.5 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-50 transition-colors duration-200">
+                        <i class="fa fa-folder-open w-5 mr-3 text-gray-500"></i>
+                        文件管理
+                    </a>
+                </nav>
+
+                <div class="p-4 border-t border-gray-200">
+                    <button onclick="confirmDelete({{ container.id }})"
+                        class="w-full flex items-center justify-center px-4 py-2.5 text-sm font-medium text-red-700 bg-red-50 rounded-md hover:bg-red-100 transition-colors duration-200">
+                        <i class="fa fa-trash mr-2"></i> 删除容器
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧总览内容 -->
+        <div class="flex-1">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <div class="p-6 border-b border-gray-200">
+                    <h2 class="text-lg font-semibold text-gray-800">容器总览</h2>
+                </div>
+
+                <div class="p-6">
+                    <!-- 容器有效期 -->
+
+                    <!-- 资源使用情况 -->
+                    <div class="mb-8">
+                        <h3 class="text-md font-medium text-gray-800 mb-4">资源使用情况</h3>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <!-- CPU 使用 -->
+                            <div>
+                                <div class="flex justify-between mb-2">
+                                    <span class="text-sm text-gray-600">CPU 使用率</span>
+                                    <span class="text-sm font-medium text-gray-800" id="cpu_usage_percent">--</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                    <div class="bg-gray-700 h-2.5 rounded-full" id="cpu_usage_progress"></div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">限制: {{ container.cpu_limit }} 核</p>
+                            </div>
+
+                            <!-- 内存使用 -->
+                            <div>
+                                <div class="flex justify-between mb-2">
+                                    <span class="text-sm text-gray-600">内存占用</span>
+                                    <span class="text-sm font-medium text-gray-800" id="mem_usage_percent">--</span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                    <div class="bg-gray-700 h-2.5 rounded-full" id="mem_usage_progress"></div>
+                                </div>
+                                <p class="text-xs text-gray-500 mt-1">限制: {{ container.mem_limit }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 容器信息 -->
+                    <div class="mb-8">
+                        <h3 class="text-md font-medium text-gray-800 mb-4">容器信息</h3>
+
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                            <div>
+                                <p class="text-sm text-gray-500 mb-1">启动命令</p>
+                                <p class="text-sm text-gray-800 font-mono bg-gray-50 px-2 py-1 rounded">{{
+                                    container.command }}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 网络信息 -->
+                    <div>
+                        <h3 class="text-md font-medium text-gray-800 mb-4">网络信息</h3>
+
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead>
+                                    <tr>
+                                        <th
+                                            class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            网络</th>
+                                        <th
+                                            class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            IP 地址</th>
+                                        <th
+                                            class="px-4 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            端口映射</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-100">
+                                    <tr>
+                                        <td class="px-4 py-3 text-sm text-gray-800">{{ container.net_mode }}</td>
+                                        <td class="px-4 py-3 text-sm text-gray-600">{{ container.ip_address }}</td>
+                                        <td class="px-4 py-3 text-sm text-gray-600">{{ container.host_port }} -> {{
+                                            container.container_port }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 访问容器函数
+    function visitContainer(port) {
+        // 假设容器通过localhost和指定端口访问
+        const url = `http://{{host_ip}}:${port}`;
+        // 打开新窗口访问容器
+        window.open(url, '_blank');
+    }
+
+    // 容器删除确认功能
+    function confirmDelete(containerId) {
+        if (confirm(`确定要删除容器 #${containerId} 吗？此操作不可撤销，所有数据将丢失。`)) {
+            // 如果用户确认，跳转到删除接口
+            window.location.href = `/manage_container/${containerId}/remove`;
+        }
+    }
+
+    function formatSize(bytes) {
+        const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+        if (bytes === 0) return '0 B';
+        const i = Math.floor(Math.log(bytes) / Math.log(1024));
+        return (bytes / Math.pow(1024, i)).toFixed(2) + ' ' + sizes[i];
+    }
+
+    function getContainerInfo() {
+        fetch(`/container/{{ container.id }}/stat`)
+            .then(response => response.json())
+            .then(data => {
+                // 更新 CPU 使用
+                const cpuPercent = data.cpu_percent.toFixed(2) + '%';
+                document.getElementById('cpu_usage_percent').innerText = cpuPercent;
+                document.getElementById('cpu_usage_progress').style.width = cpuPercent;
+
+                // 更新内存使用
+                const memPercent = data.mem_percent.toFixed(2) + '%';
+                document.getElementById('mem_usage_percent').innerText = formatSize(data.mem_usage);
+                document.getElementById('mem_usage_progress').style.width = memPercent;
+            })
+            .catch(error => {
+                console.error('Error fetching container info:', error);
+            });
+    }
+
+    getContainerInfo();
+
+    setInterval(getContainerInfo, 10000);
+
+    // 延期功能
+    function extendExpiry(containerId) {
+        if (confirm(`确定要将容器 #${containerId} 延期2小时吗？`)) {
+            fetch(`/manage_container/${containerId}/extend`, { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        showToast('操作成功', '容器已延期1小时', 'success');
+                        // 更新剩余时间显示
+                        const expiryEl = document.querySelector('.container-expiry');
+                        expiryEl.setAttribute('data-expiry', data.new_destroy_time);
+                        updateAllExpiry();
+                    } else {
+                        showToast('出错啦', data.message, 'error');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error extending container expiry:', error);
+                    showToast('出错啦', '请求失败，请稍后重试', 'error');
+                });
+        }
+    }
+
+    // 格式化时间（将毫秒转换为小时:分钟:秒）
+    function formatTime(ms) {
+        if (ms <= 0) return "已过期";
+
+        const hours = Math.floor(ms / (1000 * 60 * 60));
+        const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((ms % (1000 * 60)) / 1000);
+
+        return `${hours}h ${minutes}m ${seconds}s`;
+    }
+
+    // 更新所有容器的剩余时间和进度条
+    function updateAllExpiry() {
+        const now = new Date().getTime();
+        const totalDuration = 2 * 60 * 60 * 1000; // 2小时的总毫秒数
+
+        document.querySelectorAll('.container-expiry').forEach(el => {
+            const expiryTime = new Date(el.getAttribute('data-expiry')).getTime();
+            const remaining = expiryTime - now;
+            el.textContent = formatTime(remaining);
+        });
+
+        document.querySelectorAll('.container-progress').forEach(el => {
+            const expiryTime = new Date(el.getAttribute('data-expiry')).getTime();
+            const createdAt = new Date(expiryTime - totalDuration).getTime();
+            const remaining = expiryTime - now;
+            const elapsed = now - createdAt;
+
+            // 计算进度百分比
+            let percentage = (remaining / totalDuration) * 100;
+            percentage = Math.max(0, Math.min(100, percentage));
+
+            // 设置进度条宽度
+            el.style.width = `${percentage}%`;
+
+            // 根据剩余时间改变进度条颜色
+            if (percentage < 20) {
+                el.style.backgroundColor = '#EF4444'; // 红色 - 即将过期
+            } else if (percentage < 50) {
+                el.style.backgroundColor = '#F59E0B'; // 黄色 - 剩余时间不多
+            } else {
+                el.style.backgroundColor = '#4B5563'; // 深灰色 - 正常
+            }
+        });
+    }
+
+    // 初始化时更新一次
+    updateAllExpiry();
+
+    // 每秒更新一次
+    setInterval(updateAllExpiry, 1000);
+</script>
+{% endblock %}

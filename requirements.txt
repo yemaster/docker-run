@@ -1,0 +1,6 @@
+docker
+flask
+flask-socketio
+pymysql
+DBUtils
+python-dotenv

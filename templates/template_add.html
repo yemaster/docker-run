@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% block title %}创建模板{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <!-- 创建模板部分 -->
+    <section class="mb-10">
+        <h1 class="text-2xl font-semibold text-gray-800 mb-6">创建容器模板</h1>
+
+        <form method="post" class="bg-white rounded-lg shadow-sm shadow-sm p-6">
+            <div class="mb-6">
+                <label for="name" class="block text-sm font-medium text-gray-700 mb-1">模板名</label>
+                <input type="text" name="name" id="name" placeholder="输入模板名称"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all"
+                    required>
+            </div>
+
+            <div class="mb-6">
+                <label for="description" class="block text-sm font-medium text-gray-700 mb-1">模板描述</label>
+                <textarea name="description" id="description" rows="3" placeholder="输入模板描述"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all"></textarea>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div>
+                    <label for="image" class="block text-sm font-medium text-gray-700 mb-1">镜像名</label>
+                    <input type="text" name="image" id="image" placeholder="输入镜像名称"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all"
+                        required>
+                </div>
+
+                <div>
+                    <label for="container_port" class="block text-sm font-medium text-gray-700 mb-1">容器端口</label>
+                    <input type="number" name="container_port" id="container_port" placeholder="例如: 8080"
+                        class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all"
+                        required>
+                </div>
+            </div>
+
+            <!-- 标签输入区域 -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">模板标签</label>
+
+                <!-- 已添加的标签 -->
+                <div id="tagsContainer" class="flex flex-wrap gap-2 mb-3 min-h-[40px]">
+                    <!-- 标签会通过JavaScript动态添加 -->
+                </div>
+
+                <!-- 标签输入框 -->
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                        <i class="fa fa-tag"></i>
+                    </span>
+                    <input type="text" id="tagInput" placeholder="输入标签后按回车添加"
+                        class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all">
+                    <input type="hidden" id="tagsInput" name="tags" value="">
+                </div>
+                <p class="text-xs text-gray-500 mt-1">添加相关标签可便于分类和搜索模板</p>
+            </div>
+
+            <!-- CPU 限制 - 滑动条 + 输入框 -->
+            <div class="mb-6">
+                <label for="cpu_limit" class="block text-sm font-medium text-gray-700 mb-2">CPU 限制</label>
+                <div class="flex flex-col space-y-2">
+                    <input type="range" id="cpu_slider" min="0.1" max="4" step="0.1" value="0.5"
+                        class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-gray-600"
+                        oninput="document.getElementById('cpu_limit').value = this.value">
+                    <div class="flex items-center space-x-3">
+                        <span class="text-sm text-gray-500 min-w-[30px]">0.1</span>
+                        <input type="text" name="cpu_limit" id="cpu_limit" value="0.5"
+                            class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all"
+                            required oninput="document.getElementById('cpu_slider').value = this.value">
+                        <span class="text-sm text-gray-500 min-w-[30px] text-right">4.0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 内存限制 - 滑动条 + 输入框 -->
+            <div class="mb-6">
+                <label for="mem_limit" class="block text-sm font-medium text-gray-700 mb-2">内存限制</label>
+                <div class="flex flex-col space-y-2">
+                    <input type="range" id="mem_slider" min="128" max="8192" step="128" value="512"
+                        class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-gray-600"
+                        oninput="document.getElementById('mem_limit').value = this.value + 'm'">
+                    <div class="flex items-center space-x-3">
+                        <span class="text-sm text-gray-500 min-w-[50px]">128m</span>
+                        <input type="text" name="mem_limit" id="mem_limit" value="512m"
+                            class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all"
+                            required
+                            oninput="const val = parseInt(this.value); if(!isNaN(val)) document.getElementById('mem_slider').value = val">
+                        <span class="text-sm text-gray-500 min-w-[50px] text-right">8192m</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 磁盘限制 - 滑动条 + 输入框 -->
+            <div class="mb-6">
+                <label for="disk_limit" class="block text-sm font-medium text-gray-700 mb-2">磁盘限制</label>
+                <div class="flex flex-col space-y-2">
+                    <input type="range" id="disk_slider" min="1" max="100" step="1" value="10"
+                        class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-gray-600"
+                        oninput="document.getElementById('disk_limit').value = this.value + 'g'">
+                    <div class="flex items-center space-x-3">
+                        <span class="text-sm text-gray-500 min-w-[30px]">1g</span>
+                        <input type="text" name="disk_limit" id="disk_limit" value="10g"
+                            class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all"
+                            required
+                            oninput="const val = parseInt(this.value); if(!isNaN(val)) document.getElementById('disk_slider').value = val">
+                        <span class="text-sm text-gray-500 min-w-[30px] text-right">100g</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-6">
+                <label for="command" class="block text-sm font-medium text-gray-700 mb-1">启动命令</label>
+                <input type="text" name="command" id="command" placeholder="容器启动命令"
+                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all">
+            </div>
+
+            <!-- 标签输入区域 -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">终端命令</label>
+
+                <!-- 已添加的标签 -->
+                <div id="availableCommandsContainer" class="flex flex-wrap gap-2 mb-3 min-h-[40px]">
+                </div>
+
+                <!-- 标签输入框 -->
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                        <i class="fa fa-terminal"></i>
+                    </span>
+                    <input type="text" id="availableCommandInput" placeholder="输入命令后按回车添加"
+                        class="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-gray-500 focus:border-transparent transition-all">
+                    <input type="hidden" id="availableCommandsInput" name="available_command" value="">
+                </div>
+                <p class="text-xs text-gray-500 mt-1">添加相关标签可便于分类和搜索模板</p>
+            </div>
+
+            <button type="submit"
+                class="bg-gray-700 text-white px-4 py-2 rounded-md hover:bg-gray-800 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-gray-600 focus:ring-offset-2">
+                创建模板
+            </button>
+        </form>
+    </section>
+</div>
+
+<script>
+    // 标签管理功能
+    document.addEventListener('DOMContentLoaded', function () {
+        const tagInput = document.getElementById('tagInput');
+        const tagsContainer = document.getElementById('tagsContainer');
+        const tagsInput = document.getElementById('tagsInput');
+        const tags = new Set(); // 使用Set存储标签，避免重复
+
+        const availableCommandInput = document.getElementById('availableCommandInput');
+        const availableCommandsContainer = document.getElementById('availableCommandsContainer');
+        const availableCommandsInput = document.getElementById('availableCommandsInput');
+        const availableCommands = new Set();
+
+        // 添加标签函数
+        function addTag(tagText) {
+            // 验证标签
+            if (!tagText || tagText.trim() === '' || tags.has(tagText.trim())) {
+                return;
+            }
+
+            const tag = tagText.trim();
+            tags.add(tag);
+
+            // 创建标签元素
+            const tagElement = document.createElement('div');
+            tagElement.className = 'bg-gray-100 text-gray-700 text-sm px-3 py-1 rounded-full flex items-center';
+            tagElement.innerHTML = `
+            <span>${tag}</span>
+            <button type="button" class="ml-1 text-gray-500 hover:text-gray-700 focus:outline-none" data-tag="${tag}">
+                <i class="fa fa-times-circle"></i>
+            </button>
+        `;
+
+            // 添加删除事件
+            tagElement.querySelector('button').addEventListener('click', function () {
+                const tagToRemove = this.getAttribute('data-tag');
+                tags.delete(tagToRemove);
+                tagElement.remove();
+                updateTagsInput();
+            });
+
+            // 添加到容器
+            tagsContainer.appendChild(tagElement);
+
+            // 更新隐藏输入框
+            updateTagsInput();
+
+            // 清空输入框
+            tagInput.value = '';
+        }
+
+        function addAvailableCommand(commandText) {
+            // 验证标签
+            if (!commandText || commandText.trim() === '' || availableCommands.has(commandText.trim())) {
+                return;
+            }
+
+            const command = commandText.trim();
+            availableCommands.add(command);
+
+            // 创建标签元素
+            const commandElement = document.createElement('div');
+            commandElement.className = 'bg-gray-100 text-gray-700 text-sm px-3 py-1 rounded-full flex items-center';
+            commandElement.innerHTML = `
+            <span>${command}</span>
+            <button type="button" class="ml-1 text-gray-500 hover:text-gray-700 focus:outline-none" data-command="${command}">
+                <i class="fa fa-times-circle"></i>
+            </button>
+        `;
+
+            // 添加删除事件
+            commandElement.querySelector('button').addEventListener('click', function () {
+                const commandToRemove = this.getAttribute('data-command');
+                availableCommands.delete(commandToRemove);
+                commandElement.remove();
+                updateAvailableCommandsInput();
+            });
+
+            // 添加到容器
+            availableCommandsContainer.appendChild(commandElement);
+
+            // 更新隐藏输入框
+            updateAvailableCommandsInput();
+
+            // 清空输入框
+            availableCommandInput.value = '';
+        }
+
+        // 更新隐藏输入框的值
+        function updateTagsInput() {
+            tagsInput.value = Array.from(tags).join(',');
+        }
+        
+        function updateAvailableCommandsInput() {
+            availableCommandsInput.value = Array.from(availableCommands).join('#COMMAND_SPLIT#');
+        }
+
+        // 监听回车键添加标签
+        tagInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addTag(this.value);
+            }
+        });
+
+        availableCommandInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addAvailableCommand(this.value);
+            }
+        });
+    });
+</script>
+{% endblock %}

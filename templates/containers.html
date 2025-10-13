@@ -1,0 +1,220 @@
+{% extends "base.html" %}
+{% block title %}容器管理{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <div class="mb-8">
+        <h1 class="text-2xl font-semibold text-gray-800 mb-2">我的容器</h1>
+        <p class="text-gray-500">管理您的容器实例，包括启动、停止、连接终端等操作</p>
+    </div>
+
+    {% if containers and containers|length > 0 %}
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for cont in containers %}
+        <div
+            class="bg-white rounded border border-gray-200 rounded-lg shadow-sm overflow-hidden hover:shadow-md transition-all duration-300">
+            <!-- 容器头部 - 包含名称和状态 -->
+            <div class="bg-gray-50 px-5 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="font-medium text-gray-800">#{{ cont['name'] }}</h3>
+                <span class="px-2.5 py-0.5 inline-flex text-xs leading-5 font-semibold rounded-full 
+                    {% if cont['status'] == 'running' %}bg-green-100 text-green-800
+                    {% elif cont['status'] == 'stopped' %}bg-gray-100 text-gray-800
+                    {% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                    {{ cont['status'] }}
+                </span>
+            </div>
+
+            <!-- 容器信息 -->
+            <div class="p-5">
+                <div class="space-y-3 mb-5">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500">Docker ID:</span>
+                        <span class="text-gray-700 font-mono truncate max-w-[60%]">{{ cont['docker_id'][:12] }}</span>
+                    </div>
+
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500">主机端口:</span>
+                        <span class="text-gray-700">{{ cont['host_port'] }}</span>
+                    </div>
+
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500">CPU 限制:</span>
+                        <span class="text-gray-700">{{ cont['cpu_limit'] }}</span>
+                    </div>
+
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-500">内存限制:</span>
+                        <span class="text-gray-700">{{ cont['mem_limit'] }}</span>
+                    </div>
+
+                    <!-- 剩余时间进度条 -->
+                    {% if cont['status'] != 'removed' %}
+                    <div class="mt-4">
+                        <div class="flex justify-between text-sm mb-1">
+                            <span class="text-gray-500">剩余时间:</span>
+                            <span class="text-gray-700 container-expiry" data-expiry="{{ cont['destroy_time'] }}">
+                                计算中...
+                            </span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                            <div class="container-progress h-full rounded-full transition-all duration-1000 ease-in-out"
+                                data-expiry="{{ cont['destroy_time'] }}"
+                                style="width: 100%; background-color: #4B5563;">
+                            </div>
+                        </div>
+                        <div class="flex justify-end mt-2">
+                            <button onclick="extendExpiry({{ cont['id'] }})"
+                                class="text-xs px-2.5 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors duration-200">
+                                <i class="fa fa-refresh mr-1"></i> 延期1小时
+                            </button>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- 操作按钮 -->
+                {% if cont['status'] != 'removed' %}
+                <div class="flex flex-wrap gap-2 pt-3 border-t border-gray-100">
+                    <!--a href="/manage_container/{{ cont['id'] }}/start" 
+                       class="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium text-white bg-green-600 rounded-md hover:bg-green-700 transition-colors duration-200">
+                        <i class="fa fa-play mr-1"></i> 启动
+                    </a>
+                    
+                    <a href="/manage_container/{{ cont['id'] }}/stop" 
+                       class="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium text-white bg-yellow-600 rounded-md hover:bg-yellow-700 transition-colors duration-200">
+                        <i class="fa fa-stop mr-1"></i> 停止
+                    </a-->
+
+                    <a href="/container/{{ cont['id'] }}/overview"
+                        class="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-blue-100 hover:text-blue-700 transition-colors duration-200">
+                        <i class="fa fa-gear mr-1"></i> 总览
+                    </a>
+
+                    <a href="/container/{{ cont['id'] }}/logs"
+                        class="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-yellow-300 hover:text-yellow-700 transition-colors duration-200">
+                        <i class="fa fa-history mr-1"></i> 日志
+                    </a>
+
+                    <a href="/container/{{ cont['id'] }}/terminal"
+                        class="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-600 hover:text-white transition-colors duration-200">
+                        <i class="fa fa-terminal mr-1"></i> 终端
+                    </a>
+
+                    <a href="/container/{{ cont['id'] }}/files"
+                        class="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-yellow-100 hover:text-yellow-700 transition-colors duration-200">
+                        <i class="fa fa-folder-open mr-1"></i> 文件
+                    </a>
+
+                    <button onclick="confirmDelete({{ cont['id'] }})"
+                        class="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-red-100 hover:text-red-700 transition-colors duration-200">
+                        <i class="fa fa-trash mr-1"></i> 删除
+                    </button>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+        <div class="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 mb-4">
+            <i class="fa fa-cubes text-gray-400 text-xl"></i>
+        </div>
+        <h3 class="text-lg font-medium text-gray-900 mb-2">暂无容器</h3>
+        <p class="text-gray-500 max-w-md mx-auto">您目前没有任何容器实例，可从模板创建新的容器。</p>
+        <a href="/template/market"
+            class="mt-4 inline-flex items-center text-gray-700 hover:text-gray-900 transition-colors duration-200">
+            <i class="fa fa-plus-circle mr-1"></i> 从模板创建容器
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // 容器删除确认功能
+    function confirmDelete(containerId) {
+        if (confirm(`确定要删除容器 #${containerId} 吗？此操作不可撤销。`)) {
+            // 如果用户确认，跳转到删除接口
+            window.location.href = `/manage_container/${containerId}/remove`;
+        }
+    }
+
+    // 延期功能
+    function extendExpiry(containerId) {
+        if (confirm(`确定要将容器 #${containerId} 延期1小时吗，每个容器仅有两次延期机会？`)) {
+            fetch(`/manage_container/${containerId}/extend`, { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showToast('操作成功', '容器已延期1小时', 'success');
+                    // 更新剩余时间显示
+                    const expiryEl = document.querySelector('.container-expiry');
+                    expiryEl.setAttribute('data-expiry', data.new_destroy_time);
+                    updateAllExpiry();
+                } else {
+                    showToast('出错啦', data.message, 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error extending container expiry:', error);
+                showToast('出错啦', '请求失败，请稍后重试', 'error');
+            });
+        }
+    }
+
+    // 格式化时间（将毫秒转换为小时:分钟:秒）
+    function formatTime(ms) {
+        if (ms <= 0) return "已过期";
+
+        const hours = Math.floor(ms / (1000 * 60 * 60));
+        const minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((ms % (1000 * 60)) / 1000);
+
+        return `${hours}h ${minutes}m ${seconds}s`;
+    }
+
+    // 更新所有容器的剩余时间和进度条
+    function updateAllExpiry() {
+        const now = new Date().getTime();
+        const totalDuration = 2 * 60 * 60 * 1000; // 2小时的总毫秒数
+
+        document.querySelectorAll('.container-expiry').forEach(el => {
+            const expiryTime = new Date(el.getAttribute('data-expiry')).getTime();
+            const remaining = expiryTime - now;
+            el.textContent = formatTime(remaining);
+        });
+
+        document.querySelectorAll('.container-progress').forEach(el => {
+            const expiryTime = new Date(el.getAttribute('data-expiry')).getTime();
+            const createdAt = new Date(expiryTime - totalDuration).getTime();
+            const remaining = expiryTime - now;
+            const elapsed = now - createdAt;
+
+            // 计算进度百分比
+            let percentage = (remaining / totalDuration) * 100;
+            percentage = Math.max(0, Math.min(100, percentage));
+
+            // 设置进度条宽度
+            el.style.width = `${percentage}%`;
+
+            // 根据剩余时间改变进度条颜色
+            if (percentage < 20) {
+                el.style.backgroundColor = '#EF4444'; // 红色 - 即将过期
+            } else if (percentage < 50) {
+                el.style.backgroundColor = '#F59E0B'; // 黄色 - 剩余时间不多
+            } else {
+                el.style.backgroundColor = '#4B5563'; // 深灰色 - 正常
+            }
+        });
+    }
+
+    // 初始化时更新一次
+    updateAllExpiry();
+
+    // 每秒更新一次
+    setInterval(updateAllExpiry, 1000);
+</script>
+{% endblock %}

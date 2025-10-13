@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% block title %}首页{% endblock %}
+
+{% block content %}
+<section class="bg-gray-50 border-b border-gray-200 py-16 mb-12">
+    <div class="container mx-auto px-6">
+        <div class="max-w-3xl mx-auto text-center">
+            <h1 class="text-4xl font-bold text-gray-900 mb-4">简单高效的容器管理解决方案</h1>
+            <p class="text-lg text-gray-600 mb-8">快速创建、部署和管理容器实例，简化开发与运维流程</p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center">
+                <a href="/template/market" class="bg-gray-800 text-white px-6 py-3 rounded-md hover:bg-gray-700 transition-colors duration-200 font-medium">
+                    浏览模板
+                </a>
+                <a href="/containers" class="bg-white text-gray-800 border border-gray-300 px-6 py-3 rounded-md hover:bg-gray-50 transition-colors duration-200 font-medium">
+                    查看我的容器
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- 特性介绍 -->
+<section class="mb-16">
+    <div class="container mx-auto px-6">
+        <h2 class="text-2xl font-semibold text-gray-800 mb-2 text-center">平台特性</h2>
+        <p class="text-gray-500 text-center mb-10 max-w-2xl mx-auto">我们的容器管理平台提供丰富功能，帮助您高效管理容器生命周期</p>
+        
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <!-- 特性 1 -->
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-300">
+                <div class="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                    <i class="fa fa-cubes text-gray-700 text-xl"></i>
+                </div>
+                <h3 class="text-lg font-medium text-gray-800 mb-2">模板化部署</h3>
+                <p class="text-gray-600">通过预定义模板快速创建容器，简化部署流程。</p>
+            </div>
+            
+            <!-- 特性 2 -->
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-300">
+                <div class="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                    <i class="fa fa-tachometer text-gray-700 text-xl"></i>
+                </div>
+                <h3 class="text-lg font-medium text-gray-800 mb-2">资源监控</h3>
+                <p class="text-gray-600">实时监控容器的CPU、内存使用情况，掌握资源消耗状态，优化资源配置。</p>
+            </div>
+            
+            <!-- 特性 3 -->
+            <div class="bg-white p-6 rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-300">
+                <div class="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                    <i class="fa fa-terminal text-gray-700 text-xl"></i>
+                </div>
+                <h3 class="text-lg font-medium text-gray-800 mb-2">便捷操作</h3>
+                <p class="text-gray-600">提供直观的终端访问和文件管理功能，轻松操作容器内部环境，简化调试过程。</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- 快速开始 -->
+<section class="bg-gray-50 py-12 mb-16">
+    <div class="container mx-auto px-6">
+        <h2 class="text-2xl font-semibold text-gray-800 mb-2 text-center">快速开始</h2>
+        <p class="text-gray-500 text-center mb-10 max-w-2xl mx-auto">只需三步，即可创建并使用您的第一个容器</p>
+        
+        <div class="max-w-3xl mx-auto">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- 步骤 1 -->
+                <div class="text-center">
+                    <div class="w-10 h-10 bg-gray-800 text-white rounded-full flex items-center justify-center mx-auto mb-4 text-lg font-medium">1</div>
+                    <h3 class="font-medium text-gray-800 mb-2">选择模板</h3>
+                    <p class="text-gray-600 text-sm">从模板库中选择适合您需求的容器模板</p>
+                </div>
+                
+                <!-- 步骤 2 -->
+                <div class="text-center">
+                    <div class="w-10 h-10 bg-gray-800 text-white rounded-full flex items-center justify-center mx-auto mb-4 text-lg font-medium">2</div>
+                    <h3 class="font-medium text-gray-800 mb-2">创建容器</h3>
+                    <p class="text-gray-600 text-sm">配置资源参数，一键创建容器实例</p>
+                </div>
+                
+                <!-- 步骤 3 -->
+                <div class="text-center">
+                    <div class="w-10 h-10 bg-gray-800 text-white rounded-full flex items-center justify-center mx-auto mb-4 text-lg font-medium">3</div>
+                    <h3 class="font-medium text-gray-800 mb-2">开始使用</h3>
+                    <p class="text-gray-600 text-sm">通过终端或文件管理功能操作您的容器</p>
+                </div>
+            </div>
+            
+            <div class="mt-10 text-center">
+                <a href="/template/market" class="inline-flex items-center bg-gray-800 text-white px-5 py-2.5 rounded-md hover:bg-gray-700 transition-colors duration-200">
+                    <i class="fa fa-rocket mr-2"></i> 立即开始
+                </a>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- 统计数据 -->
+<section class="mb-16">
+    <div class="container mx-auto px-6">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-6 text-center">
+            <div class="p-6">
+                <div class="text-3xl font-bold text-gray-800 mb-2">{{ total_templates }}</div>
+                <p class="text-gray-600">可用模板</p>
+            </div>
+            <div class="p-6">
+                <div class="text-3xl font-bold text-gray-800 mb-2">{{ running_containers }}</div>
+                <p class="text-gray-600">运行中容器</p>
+            </div>
+            <div class="p-6">
+                <div class="text-3xl font-bold text-gray-800 mb-2">{{ total_containers }}</div>
+                <p class="text-gray-600">总容器数</p>
+            </div>
+            <div class="p-6">
+                <div class="text-3xl font-bold text-gray-800 mb-2">{{ total_users }}</div>
+                <p class="text-gray-600">活跃用户</p>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
