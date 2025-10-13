@@ -325,12 +325,20 @@ def containers():
     user_id = get_user_id()
     is_admin = 'admin' in session
 
-    if is_admin:
-        conts = execute_query('SELECT * FROM containers ORDER BY id desc')
-    else:
-        conts = execute_query('SELECT * FROM containers WHERE user_id = %s AND status != "removed" ORDER BY id desc', (user_id,))
+    page = request.args.get('page', 1, type=int)
+    per_page = 6
+    offset = (page - 1) * per_page
 
-    return render_template('containers.html', containers=conts, is_admin=is_admin)
+    if is_admin:
+        conts = execute_query('SELECT * FROM containers ORDER BY id desc LIMIT %s OFFSET %s', (per_page, offset))
+        total_items = select_one('SELECT COUNT(*) cnt FROM containers')['cnt']
+    else:
+        conts = execute_query('SELECT * FROM containers WHERE user_id = %s AND status != "removed" ORDER BY id desc LIMIT %s OFFSET %s', (user_id, per_page, offset))
+        total_items = select_one('SELECT COUNT(*) cnt FROM containers WHERE user_id = %s AND status != "removed"', (user_id,))['cnt']
+    
+    total_pages = (total_items - 1) // per_page + 1
+    
+    return render_template('containers.html', containers=conts, per_page=per_page, current_page=page, total_items=total_items, total_pages=total_pages, is_admin=is_admin)
 
 @app.route('/container/<int:cont_id>/stat')
 def container_info(cont_id):
@@ -754,9 +762,9 @@ def logs():
     offset = (page - 1) * per_page
     logs = execute_query('SELECT * FROM logs ORDER BY id DESC LIMIT %s OFFSET %s', (per_page, offset))
     total_logs = select_one('SELECT COUNT(*) cnt FROM logs')['cnt']
-    total_pages = (total_logs + per_page - 1) // per_page
+    total_pages = (total_logs - 1) // per_page + 1
     is_admin = 'admin' in session
-    return render_template('logs.html', logs=logs, page=page, total_pages=total_pages, is_admin=is_admin)
+    return render_template('logs.html', logs=logs, per_page=per_page, current_page=page, total_items=total_logs, total_pages=total_pages, is_admin=is_admin)
 
 @socketio.on('connect', namespace='/logs')
 def handle_connect():
@@ -775,6 +783,10 @@ def handle_start_logs(data):
 
     try:
         container = docker_client.containers.get(cont['docker_id'])
+        # 先获取最近的100行日志
+        logs = container.logs(tail=100).decode('utf-8')
+        emit('log_message', logs, namespace='/logs')
+        # 然后持续获取新的日志
         for log in container.logs(stream=True, follow=True):
             emit('log_message', log.decode('utf-8'), namespace='/logs')
     except docker.errors.NotFound:
@@ -859,6 +871,7 @@ def start_terminal(data):
             docker_client.api.exec_resize(exec_id, width=cols, height=rows)
         except docker.errors.DockerException as resize_error:
             print(f"Initial resize failed (common): {resize_error}")
+            # 可选：重试
             time.sleep(0.2)
             try:
                 docker_client.api.exec_resize(exec_id, width=cols, height=rows)

@@ -130,6 +130,46 @@
         </a>
     </div>
     {% endif %}
+
+    
+    {% if total_pages > 1 %}
+    <div class="mt-6 flex justify-between items-center">
+        <div class="text-sm text-gray-500">
+            显示 {{ (current_page - 1) * per_page + 1 }} 到 {{ current_page * per_page if current_page * per_page <
+                total_items else total_items }} 条，共 {{ total_items }} 条记录 </div>
+
+                <div class="flex items-center gap-1">
+                    <a href="{{ url_for('containers', page=1) }}"
+                        class="px-3 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed {% if current_page == 1 %}opacity-50 cursor-not-allowed{% endif %}">
+                        首页
+                    </a>
+
+                    <a href="{{ url_for('containers', page=current_page - 1) }}"
+                        class="px-3 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 {% if current_page == 1 %}opacity-50 cursor-not-allowed{% endif %}">
+                        上一页
+                    </a>
+
+                    {% for page in range(1, total_pages + 1) %}
+                    {% if page >= current_page - 2 and page <= current_page + 2 %} <a
+                        href="{{ url_for('containers', page=page) }}"
+                        class="px-3 py-1 rounded border border-gray-300 {% if page == current_page %}bg-gray-700 text-white border-gray-700{% else %}text-gray-600 hover:bg-gray-50{% endif %}">
+                        {{ page }}
+                        </a>
+                        {% endif %}
+                        {% endfor %}
+
+                        <a href="{{ url_for('containers', page=current_page + 1) }}"
+                            class="px-3 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 {% if current_page == total_pages %}opacity-50 cursor-not-allowed{% endif %}">
+                            下一页
+                        </a>
+
+                        <a href="{{ url_for('containers', page=total_pages) }}"
+                            class="px-3 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 {% if current_page == total_pages %}opacity-50 cursor-not-allowed{% endif %}">
+                            末页
+                        </a>
+                </div>
+        </div>
+        {% endif %}
 </div>
 
 {% endblock %}
