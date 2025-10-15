@@ -144,7 +144,7 @@
                                     </button>
                                 </div>
                             </div>
-                            <div id="terminal-container" class="bg-black rounded-md h-96"></div>
+                            <div id="terminal-container" class="bg-black rounded-md"></div>
                         </div>
                     </div>
                 </div>
@@ -158,12 +158,16 @@
 <script src="/static/js/container.js"></script>
 <script src="/static/js/socket.io.min.js"></script>
 <script src="/static/js/xterm.min.js"></script>
+<script src="/static/js/xterm-addon-fit.js"></script>
 <script>
     const terminal = new Terminal({
         cursorBlink: true,
         theme: { background: '#000000', foreground: '#FFFFFF' },
     });
+    const fitAddon = new FitAddon.FitAddon();
+    terminal.loadAddon(fitAddon);
     terminal.open(document.getElementById('terminal-container'));
+    fitAddon.fit();
 
     let connectedBackend = false;
     let runningTerminal = false;
