@@ -872,7 +872,7 @@ def start_terminal(data):
         }
         
         socketio.start_background_task(read_terminal_output, sid, docker_socket, docker_client, exec_id)
-        emit('terminal_output', {'output': '\r\n[SYSTEM] Terminal connected\r\n'})
+        emit('terminal_started')
         
     except docker.errors.DockerException as e:
         emit('error', {'message': f'Docker error: {str(e)}'})
