@@ -178,7 +178,7 @@
 
     socket.on('error', function (data) {
         console.error('Terminal error:', data.message);
-        terminal.write('\x1b[31m[SYSTEM] Error: ' + data.message + '\x1b[0m\r\n');
+        terminal.write(`\r\n\x1b[1;31m[SYSTEM] Error: ${data.message}\x1b[0m\r\n`);
         runningTerminal = false
     });
 
