@@ -833,7 +833,7 @@ def start_terminal(data):
     # Kill all sessions
     for session_id in session_to_remove:
         try:
-            socketio.emit('terminal_output', {'output': '\r\nTerminal session killed by new connection.\r\n'}, namespace='/terminal', to=session_id)
+            socketio.emit('terminal_output', {'output': '\r\n[SYSTEM] Terminal session killed by new connection.\r\n'}, namespace='/terminal', to=session_id)
         except:
             pass
         kill_terminal_session(session_id)
@@ -872,7 +872,7 @@ def start_terminal(data):
         }
         
         socketio.start_background_task(read_terminal_output, sid, docker_socket, docker_client, exec_id)
-        emit('terminal_output', {'output': '\r\nTerminal connected\r\n'})
+        emit('terminal_output', {'output': '\r\n[SYSTEM] Terminal connected\r\n'})
         
     except docker.errors.DockerException as e:
         emit('error', {'message': f'Docker error: {str(e)}'})

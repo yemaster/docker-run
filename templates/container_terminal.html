@@ -164,6 +164,7 @@
 
     socket.on('connect', function () {
         console.log('Connected to terminal manager');
+        terminal.write('\r\n[SYSTEM] Connected to backend. Ready to start terminal.\r\n');
     });
 
     socket.on('terminal_output', function (data) {
@@ -171,17 +172,18 @@
     });
 
     socket.on('terminal_exit', function (data) {
-        terminal.write(`\r\nProcess terminated with exit code: ${data.exit_code}\r\n`);
+        terminal.write(`\r\n[SYSTEM] Process terminated with exit code: ${data.exit_code}\r\n`);
         runningTerminal = false
     });
 
     socket.on('error', function (data) {
         console.error('Terminal error:', data.message);
-        terminal.write('\r\nError: ' + data.message + '\r\n');
+        terminal.write('\x1b[31m[SYSTEM] Error: ' + data.message + '\x1b[0m\r\n');
+        runningTerminal = false
     });
 
     socket.on('disconnect', function () {
-        terminal.write('\r\nDisconnected from terminal\r\n');
+        terminal.write('\r\n[SYSTEM] Disconnected from backend.\r\n');
     });
 
     terminal.onData(function (data) {
