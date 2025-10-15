@@ -11,6 +11,8 @@ import random
 import os
 import base64
 import bcrypt
+import select
+import socket as std_socket
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, session, flash
 from flask_socketio import SocketIO, emit, disconnect
@@ -783,6 +785,7 @@ def handle_start_logs(data):
 
     try:
         container = docker_client.containers.get(cont['docker_id'])
+        # 然后持续获取新的日志
         for log in container.logs(stream=True, follow=True):
             emit('log_message', log.decode('utf-8'), namespace='/logs')
     except docker.errors.NotFound:
@@ -802,24 +805,6 @@ def terminal_connect():
 
 terminal_sessions = {}
 
-@socketio.on('closing_existing', namespace='/terminal')
-def closing_existing(data):
-    container_id = data.get('container_id')
-    if not container_id:
-        emit('error', {'message': 'No container_id provided for close_existing'})
-        return
-
-    for session_id, session_info in list(terminal_sessions.items()):
-        if session_info['container_id'] == container_id:
-            try:
-                session_info['socket']._sock.close()
-                print(f"Closed terminal session {session_id} for container {session_info['container_id']}")
-            except Exception as e:
-                print(f"Error closing session {session_id}: {str(e)}")
-            del terminal_sessions[session_id]
-    emit('closed_existing', {'message': 'Existing terminal sessions closed'})
-
-
 @socketio.on('start_terminal', namespace='/terminal')
 def start_terminal(data):
     container_id = data.get('container_id')
@@ -832,23 +817,28 @@ def start_terminal(data):
         emit('error', {'message': 'Missing container_id, command, cols, or rows'})
         return
     
+    
+    user_id = get_user_id()
+    is_admin = 'admin' in session
+    cont = select_one('SELECT * FROM containers WHERE id = %s AND status != "removed"', (container_id,))
+    if not cont or (not is_admin and cont['user_id'] != user_id):
+        emit('error', {'message': '无权限'})
+        return
+    
+    session_to_remove = []
     for session_id, session_info in terminal_sessions.items():
         if session_info['container_id'] == container_id:
-            # Kill exec id
-            try:
-                session_info['socket']._sock.close()
-                print(f"Closed previous terminal session {session_id} for container {session_info['container_id']}")
-            except Exception as e:
-                print(f"Error closing previous session {session_id}: {str(e)}")
-    
-    try:
-        user_id = get_user_id()
-        is_admin = 'admin' in session
-        cont = select_one('SELECT * FROM containers WHERE id = %s AND status != "removed"', (container_id,))
-        if not cont or (not is_admin and cont['user_id'] != user_id):
-            emit('error', {'message': '无权限'})
-            return
+            session_to_remove.append(session_id)
         
+    # Kill all sessions
+    for session_id in session_to_remove:
+        try:
+            socketio.emit('terminal_output', {'output': '\r\nTerminal session killed by new connection.\r\n'}, namespace='/terminal', to=session_id)
+        except:
+            pass
+        kill_terminal_session(session_id)
+
+    try:        
         exec_id = docker_client.api.exec_create(
             cont['docker_id'],
             command,
@@ -877,7 +867,8 @@ def start_terminal(data):
         terminal_sessions[sid] = {
             'container_id': container_id,
             'exec_id': exec_id,
-            'socket': docker_socket
+            'socket': docker_socket,
+            'last_activity': time.time()
         }
         
         socketio.start_background_task(read_terminal_output, sid, docker_socket, docker_client, exec_id)
@@ -890,24 +881,44 @@ def start_terminal(data):
 
 def read_terminal_output(sid, docker_socket, client, exec_id):
     try:
+        # 设置 socket 为非超时模式
+        docker_socket._sock.settimeout(None)  # 无限等待，避免默认 timeout
+        
         while True:
-            output = docker_socket._sock.recv(1024)
-            if not output:
-                # 检查进程退出状态
-                exec_info = client.api.exec_inspect(exec_id)
-                exit_code = exec_info['ExitCode']
-                socketio.emit('terminal_exit', {'exit_code': exit_code}, namespace='/terminal', to=sid)
-                break
-            socketio.emit('terminal_output', {'output': output.decode('utf-8', errors='replace')}, namespace='/terminal', to=sid)
+            # 使用 select 轮询：无限超时等待数据可读
+            readable, _, _ = select.select([docker_socket._sock], [], [], None)
+            if readable:
+                output = docker_socket._sock.recv(1024)
+                if not output:
+                    # 无数据：检查退出
+                    exec_info = client.api.exec_inspect(exec_id)
+                    exit_code = exec_info['ExitCode']
+                    socketio.emit('terminal_exit', {'exit_code': exit_code}, namespace='/terminal', to=sid)
+                    break
+                socketio.emit('terminal_output', {'output': output.decode('utf-8', errors='replace')}, namespace='/terminal', to=sid)
+            # else: 继续循环（无数据时不阻塞）
     except Exception as e:
-        socketio.emit('error', {'message': f'Terminal output error: {str(e)}'}, namespace='/terminal', to=sid)
+        # 区分超时异常
+        if isinstance(e, std_socket.timeout):
+            socketio.emit('error', {'message': 'Terminal timed out, but retrying...'}, namespace='/terminal', to=sid)
+            # 可选：继续循环或重连
+        else:
+            socketio.emit('error', {'message': f'Terminal output error: {str(e)}'}, namespace='/terminal', to=sid)
     finally:
+        kill_terminal_session(sid)
+
+def kill_terminal_session(sid):
+    if sid in terminal_sessions:
+        pid = docker_client.api.exec_inspect(terminal_sessions[sid]['exec_id']).get("Pid", 0)
+        if pid and pid > 0:
+            os.kill(pid, 9)  # 发送 SIGKILL 信号终止进程
+
         try:
-            docker_socket._sock.close()
+            terminal_sessions[sid]['socket']._sock.close()
         except:
             pass
-        if sid in terminal_sessions:
-            del terminal_sessions[sid]
+
+        del terminal_sessions[sid]
 
 @socketio.on('terminal_input', namespace='/terminal')
 def terminal_input(data):
@@ -926,11 +937,7 @@ def terminal_input(data):
 def terminal_disconnect():
     sid = request.sid
     if sid in terminal_sessions:
-        try:
-            terminal_sessions[sid]['socket']._sock.close()
-        except:
-            pass
-        del terminal_sessions[sid]
+        kill_terminal_session(sid)
 
 if __name__ == '__main__':
     socketio.run(app, debug=True)
