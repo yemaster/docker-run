@@ -783,10 +783,6 @@ def handle_start_logs(data):
 
     try:
         container = docker_client.containers.get(cont['docker_id'])
-        # 先获取最近的100行日志
-        logs = container.logs(tail=100).decode('utf-8')
-        emit('log_message', logs, namespace='/logs')
-        # 然后持续获取新的日志
         for log in container.logs(stream=True, follow=True):
             emit('log_message', log.decode('utf-8'), namespace='/logs')
     except docker.errors.NotFound:
