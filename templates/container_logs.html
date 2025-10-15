@@ -127,9 +127,7 @@
 <script src="/static/js/container.js"></script>
 <script src="/static/js/socket.io.min.js"></script>
 <script>
-    const socket = io('/logs', {
-        withCredentials: true,
-    });
+    const socket = io('/logs', { transports: ['websocket'] });
 
     socket.on('connect', () => {
         console.log('Connected to WebSocket server');
