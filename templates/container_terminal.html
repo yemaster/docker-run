@@ -2,7 +2,7 @@
 {% block title %}容器终端 - {{ container.name }}{% endblock %}
 
 {% block header %}
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
+<link rel="stylesheet" href="/static/css/xterm.min.css">
 {% endblock %}
 
 {% block content %}
@@ -156,18 +156,14 @@
 
 {% block scripts %}
 <script src="/static/js/container.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/socket.io-client@4.7.5/dist/socket.io.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.min.js"></script>
+<script src="/static/js/socket.io.min.js"></script>
+<script src="/static/js/xterm.min.js"></script>
 <script>
     const terminal = new Terminal({
         cursorBlink: true,
         theme: { background: '#000000', foreground: '#FFFFFF' },
     });
-    const fitAddon = new FitAddon.FitAddon();
-    terminal.loadAddon(fitAddon);
     terminal.open(document.getElementById('terminal-container'));
-    fitAddon.fit();
 
     let connectedBackend = false;
     let runningTerminal = false;
