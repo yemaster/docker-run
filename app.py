@@ -1,8 +1,7 @@
-import pymysql
-from pymysql.cursors import DictCursor
-from dbutils.pooled_db import PooledDB
-
 from dotenv import load_dotenv
+
+# -------- DB ---------
+from models.db import execute_query, select_one, init_db
 
 import docker
 import threading
@@ -33,97 +32,9 @@ socketio = SocketIO(app,
 # Docker 客户端
 docker_client = docker.from_env()
 
-db_pool = PooledDB(
-    creator=pymysql,
-    mincached=1,
-    maxcached=5,
-    maxconnections=10,
-    blocking=True,
-    host=os.environ.get('DB_HOST', 'localhost'),
-    user=os.environ.get('DB_USER', 'root'),
-    password=os.environ.get('DB_PASS', ''),
-    database=os.environ.get('DB_NAME', 'docker_run'),
-    port=int(os.environ.get('DB_PORT', 3306)),
-    charset='utf8mb4',
-    cursorclass=DictCursor
-)
-
-def execute_query(sql, args=None):
-    with db_pool.connection() as conn:
-        with conn.cursor() as cursor:
-            if args is None:
-                cursor.execute(sql)
-            else:
-                cursor.execute(sql, args)
-            if sql.strip().upper().startswith("SELECT"):
-                res = cursor.fetchall()
-                return res
-            else:
-                conn.commit()
-                if sql.strip().upper().startswith("INSERT"):
-                    return cursor.lastrowid
-                return cursor.rowcount
-
-def select_one(sql, args=None):
-    with db_pool.connection() as conn:
-        with conn.cursor() as cursor:
-            if args is None:
-                cursor.execute(sql)
-            else:
-                cursor.execute(sql, args)
-            return cursor.fetchone()
-
 def hash_password(password):
     salt = bcrypt.gensalt()
     return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
-
-# 初始化数据库
-def init_db():
-    execute_query('''
-        CREATE TABLE IF NOT EXISTS admins (
-            id INT PRIMARY KEY AUTO_INCREMENT,
-            username VARCHAR(255) UNIQUE,
-            password_hash VARCHAR(255)
-        )
-    ''')
-    execute_query('''
-        CREATE TABLE IF NOT EXISTS templates (
-            id INT PRIMARY KEY AUTO_INCREMENT,
-            description TEXT,
-            name VARCHAR(255),
-            image VARCHAR(255),
-            cpu_limit VARCHAR(50),
-            mem_limit VARCHAR(50),
-            disk_limit VARCHAR(50),
-            command TEXT,
-            available_command TEXT,
-            tags TEXT,
-            container_port INT
-        )
-    ''')
-    execute_query('''
-        CREATE TABLE IF NOT EXISTS containers (
-            id INT PRIMARY KEY AUTO_INCREMENT,
-            name VARCHAR(255),
-            user_id VARCHAR(255),
-            template_id INT,
-            docker_id VARCHAR(255),
-            host_port INT,
-            status VARCHAR(50),
-            extended_times INT DEFAULT 0,
-            destroy_time TIMESTAMP
-        )
-    ''')
-    execute_query('''
-        CREATE TABLE IF NOT EXISTS logs (
-            id INT PRIMARY KEY AUTO_INCREMENT,
-            action TEXT,
-            user_id VARCHAR(255),
-            timestamp TIMESTAMP
-        )
-    ''')
-    hashed = hash_password(os.environ.get('ADMIN_PASSWORD', 'admin'))
-    execute_query('INSERT IGNORE INTO admins (username, password_hash) VALUES (%s, %s)', (os.environ.get('ADMIN_USERNAME', 'admin'), hashed))
 
 init_db()
 
