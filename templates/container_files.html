@@ -333,6 +333,27 @@
     const pdfFiles = ['.pdf'];
 </script>
 <script>
+    // 新建按钮
+    let newDropdownOpen = false;
+
+    function toggleNewDropdown() {
+        const dropdown = document.getElementById('newDropdownMenu');
+        newDropdownOpen = !newDropdownOpen;
+        dropdown.classList.toggle('hidden', !newDropdownOpen);
+    }
+
+    // 点击其他区域关闭下拉菜单
+    document.addEventListener('click', function (event) {
+        const dropdownBtn = document.getElementById('newDropdownBtn');
+        const dropdownMenu = document.getElementById('newDropdownMenu');
+
+        if (!dropdownBtn.contains(event.target) && !dropdownMenu.contains(event.target)) {
+            newDropdownOpen = false;
+            dropdownMenu.classList.add('hidden');
+        }
+    });
+</script>
+<script>
     function base64Encode(str) {
         const encoder = new TextEncoder();
         const uint8Array = encoder.encode(str);

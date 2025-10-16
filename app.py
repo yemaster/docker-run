@@ -523,6 +523,7 @@ def container_files_action(cont_id, action):
                     })
                 except Exception as e:
                     pass
+            files.sort(key=lambda x: (x['type'] != 'dir', x['name'].lower()))
             return {
                 'success': True,
                 'files': files
@@ -911,7 +912,10 @@ def kill_terminal_session(sid):
     if sid in terminal_sessions:
         pid = docker_client.api.exec_inspect(terminal_sessions[sid]['exec_id']).get("Pid", 0)
         if pid and pid > 0:
-            os.kill(pid, 9)  # 发送 SIGKILL 信号终止进程
+            try:
+                os.kill(pid, 9)  # 发送 SIGKILL 信号终止进程
+            except Exception as e:
+                pass
 
         try:
             terminal_sessions[sid]['socket']._sock.close()
