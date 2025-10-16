@@ -8,10 +8,10 @@
             <h1 class="text-4xl font-bold text-gray-900 mb-4">简单高效的容器管理解决方案</h1>
             <p class="text-lg text-gray-600 mb-8">快速创建、部署和管理容器实例，简化开发与运维流程</p>
             <div class="flex flex-col sm:flex-row gap-4 justify-center">
-                <a href="/template/market" class="bg-gray-800 text-white px-6 py-3 rounded-md hover:bg-gray-700 transition-colors duration-200 font-medium">
+                <a href="{{ url_for('template.market') }}" class="bg-gray-800 text-white px-6 py-3 rounded-md hover:bg-gray-700 transition-colors duration-200 font-medium">
                     浏览模板
                 </a>
-                <a href="/containers" class="bg-white text-gray-800 border border-gray-300 px-6 py-3 rounded-md hover:bg-gray-50 transition-colors duration-200 font-medium">
+                <a href="{{ url_for('container.get_list') }}" class="bg-white text-gray-800 border border-gray-300 px-6 py-3 rounded-md hover:bg-gray-50 transition-colors duration-200 font-medium">
                     查看我的容器
                 </a>
             </div>
@@ -87,7 +87,7 @@
             </div>
             
             <div class="mt-10 text-center">
-                <a href="/template/market" class="inline-flex items-center bg-gray-800 text-white px-5 py-2.5 rounded-md hover:bg-gray-700 transition-colors duration-200">
+                <a href="{{ url_for('template.market') }}" class="inline-flex items-center bg-gray-800 text-white px-5 py-2.5 rounded-md hover:bg-gray-700 transition-colors duration-200">
                     <i class="fa fa-rocket mr-2"></i> 立即开始
                 </a>
             </div>

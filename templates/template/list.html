@@ -7,7 +7,7 @@
         <h2 class="text-xl font-semibold text-gray-800 mb-4">模板列表</h2>
 
         <div class="mb-4">
-            <a href="/template/add"
+            <a href="{{ url_for('template.add') }}"
                 class="inline-flex items-center bg-gray-200 px-5 py-2.5 rounded-lg shadow-sm hover:bg-gray-300 transition-colors duration-200">
                 <i class="fa fa-cubes mr-2"></i>添加模板
             </a>
@@ -75,7 +75,7 @@
         showConfirm("真的吗", "确定要删除这个模板吗？", function() {
             const formData = new FormData();
             formData.append('template_id', templateId);
-            fetch('/template/delete', {
+            fetch("{{ url_for('template.delete') }}", {
                 method: 'POST',
                 body: formData
             }).then(response => response.json())

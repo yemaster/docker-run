@@ -16,35 +16,35 @@
             <div class="font-semibold text-gray-800 text-lg">{% block nav_title %}Docker Run{% endblock %}</div>
 
             <div class="flex space-x-6">
-                <a href="/" class="text-gray-600 hover:text-gray-900 transition-colors duration-200 flex items-center">
+                <a href="{{ url_for('main.index') }}" class="text-gray-600 hover:text-gray-900 transition-colors duration-200 flex items-center">
                     <i class="fa fa-home mr-1"></i> 首页
                 </a>
 
-                <a href="/template/market"
+                <a href="{{ url_for('template.market') }}"
                     class="text-gray-600 hover:text-gray-900 transition-colors duration-200 flex items-center">
                     <i class="fa fa-th-list mr-1"></i> 模板广场
                 </a>
 
-                <a href="/containers"
+                <a href="{{ url_for('container.get_list') }}"
                     class="text-gray-600 hover:text-gray-900 transition-colors duration-200 flex items-center">
                     <i class="fa fa-server mr-1"></i> 我的容器
                 </a>
 
                 {% if is_admin %}
-                <a href="/templates"
+                <a href="{{ url_for('template.get_list') }}"
                     class="text-gray-600 hover:text-gray-900 transition-colors duration-200 flex items-center">
                     <i class="fa fa-file-text-o mr-1"></i> 模板管理
                 </a>
-                <a href="/logs"
+                <a href="{{ url_for('logs.logs_list') }}"
                     class="text-gray-600 hover:text-gray-900 transition-colors duration-200 flex items-center">
                     <i class="fa fa-history mr-1"></i> 日志
                 </a>
-                <a href="/logout"
+                <a href="{{ url_for('auth.logout') }}"
                     class="text-gray-600 hover:text-gray-900 transition-colors duration-200 flex items-center">
                     <i class="fa fa-sign-out mr-1"></i> 登出
                 </a>
                 {% else %}
-                <a href="/login"
+                <a href="{{ url_for('auth.login') }}"
                     class="text-gray-600 hover:text-gray-900 transition-colors duration-200 flex items-center">
                     <i class="fa fa-sign-in mr-1"></i> 登录
                 </a>

@@ -76,31 +76,31 @@
             </div>
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                 <nav class="p-2">
-                    <a href="/container/{{ container.id }}/overview"
+                    <a href="{{ url_for('container.overview', cont_id=container.id) }}"
                         class="flex items-center px-4 py-2.5 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-50 mb-1 transition-colors duration-200">
                         <i class="fa fa-dashboard w-5 mr-3 text-gray-500"></i>
                         总览
                     </a>
 
-                    <a href="/container/{{ container.id }}/logs"
+                    <a href="{{ url_for('container.logs', cont_id=container.id) }}"
                         class="flex items-center px-4 py-2.5 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-50 mb-1 transition-colors duration-200">
                         <i class="fa fa-history w-5 mr-3 text-gray-500"></i>
                         日志
                     </a>
 
-                    <a href="/container/{{ container.id }}/terminal"
-                        class="flex items-center px-4 py-2.5 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-50 transition-colors duration-200 mb-1">
+                    <a href="{{ url_for('container.terminal', cont_id=container.id) }}"
+                        class="flex items-center px-4 py-2.5 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-50 mb-1 transition-colors duration-200">
                         <i class="fa fa-terminal w-5 mr-3 text-gray-500"></i>
                         终端
                     </a>
 
-                    <a href="/container/{{ container.id }}/files"
+                    <a href="{{ url_for('container.files', cont_id=container.id) }}"
                         class="flex items-center px-4 py-2.5 text-sm font-medium rounded-md bg-gray-100 text-gray-900">
                         <i class="fa fa-folder-open w-5 mr-3 text-gray-500"></i>
                         文件管理
                     </a>
                 </nav>
-
+                
                 <div class="p-4 border-t border-gray-200">
                     <button onclick="confirmDelete({{ container.id }}, '{{ container.name }}')"
                         class="w-full flex items-center justify-center px-4 py-2.5 text-sm font-medium text-red-700 bg-red-50 rounded-md hover:bg-red-100 transition-colors duration-200">
@@ -402,7 +402,7 @@
 
     function getFileList(path) {
         showLoading();
-        fetch(`/container/{{ container.id }}/files/get_list?path=${encodeURIComponent(path)}`)
+        fetch(`{{ url_for('container.files_action', cont_id=container.id, action='get_list') }}?path=${encodeURIComponent(path)}`)
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
@@ -504,7 +504,7 @@
         showLoading();
         document.getElementById('fileEditor').value = '';
 
-        fetch("/container/{{ container.id }}/files/view?path=" + encodeURIComponent(nowDir) + "&file=" + encodeURIComponent(fileName))
+        fetch("{{ url_for('container.files_action', cont_id=container.id, action='view') }}?path=" + encodeURIComponent(nowDir) + "&file=" + encodeURIComponent(fileName))
             .then(response => response.json())
             .then(r => {
                 if (r.success) {
@@ -530,7 +530,7 @@
         const content = document.getElementById('fileEditor').value;
         const encodedContent = base64Encode(content);
 
-        fetch("/container/{{ container.id }}/files/edit?path=" + encodeURIComponent(nowDir) + "&file=" + encodeURIComponent(fileName), {
+        fetch("{{ url_for('container.files_action', cont_id=container.id, action='edit') }}?path=" + encodeURIComponent(nowDir) + "&file=" + encodeURIComponent(fileName), {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -561,7 +561,7 @@
     function deleteFile(fileName) {
         showConfirm("真的吗", "真的要删除 " + fileName + " 吗？此操作不可撤销！", function (confirmed) {
             if (confirmed) {
-                fetch("/container/{{ container.id }}/files/delete?path=" + encodeURIComponent(nowDir) + "&file=" + encodeURIComponent(fileName), {
+                fetch("{{ url_for('container.files_action', cont_id=container.id, action='delete') }}?path=" + encodeURIComponent(nowDir) + "&file=" + encodeURIComponent(fileName), {
                     method: 'POST',
                 })
                     .then(response => response.json())
@@ -585,7 +585,7 @@
         const label = type === 'file' ? '文件' : '文件夹';
         showInputConfirm(`新建${label}`, `请输入${label}名称`, function (confirmed, inputValue) {
             if (confirmed && inputValue) {
-                fetch("/container/{{ container.id }}/files/create?path=" + encodeURIComponent(nowDir) + "&file=" + encodeURIComponent(inputValue) + "&type=" + type, {
+                fetch("{{ url_for('container.files_action', cont_id=container.id, action='create') }}?path=" + encodeURIComponent(nowDir) + "&file=" + encodeURIComponent(inputValue) + "&type=" + type, {
                     method: 'POST',
                 })
                     .then(response => response.json())
@@ -894,7 +894,7 @@
         uploadAbortController = new AbortController();
 
         // 执行上传
-        fetch(`/container/{{ container.id }}/files/upload?path=${encodeURIComponent(nowDir)}`, {
+        fetch(`{{ url_for('container.files_action', cont_id=container.id, action='upload') }}?path=${encodeURIComponent(nowDir)}`, {
             method: 'POST',
             body: formData,
             signal: uploadAbortController.signal,

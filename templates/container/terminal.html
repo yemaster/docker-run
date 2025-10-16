@@ -76,25 +76,25 @@
             </div>
             <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                 <nav class="p-2">
-                    <a href="/container/{{ container.id }}/overview"
+                    <a href="{{ url_for('container.overview', cont_id=container.id) }}"
                         class="flex items-center px-4 py-2.5 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-50 mb-1 transition-colors duration-200">
                         <i class="fa fa-dashboard w-5 mr-3 text-gray-500"></i>
                         总览
                     </a>
 
-                    <a href="/container/{{ container.id }}/logs"
+                    <a href="{{ url_for('container.logs', cont_id=container.id) }}"
                         class="flex items-center px-4 py-2.5 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-50 mb-1 transition-colors duration-200">
                         <i class="fa fa-history w-5 mr-3 text-gray-500"></i>
                         日志
                     </a>
 
-                    <a href="/container/{{ container.id }}/terminal"
+                    <a href="{{ url_for('container.terminal', cont_id=container.id) }}"
                         class="flex items-center px-4 py-2.5 text-sm font-medium rounded-md bg-gray-100 text-gray-900 mb-1">
                         <i class="fa fa-terminal w-5 mr-3 text-gray-500"></i>
                         终端
                     </a>
 
-                    <a href="/container/{{ container.id }}/files"
+                    <a href="{{ url_for('container.files', cont_id=container.id) }}"
                         class="flex items-center px-4 py-2.5 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-50 transition-colors duration-200">
                         <i class="fa fa-folder-open w-5 mr-3 text-gray-500"></i>
                         文件管理
@@ -192,7 +192,7 @@
 
     showLoading('正在初始化终端...');
 
-    const socket = io('/terminal', { transports: ['websocket'] });
+    const socket = io('/container_terminal', { transports: ['websocket'] });
 
     socket.on('connect', function () {
         console.log('Connected to terminal manager');
