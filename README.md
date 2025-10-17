@@ -44,7 +44,7 @@ Docker Run 是一个旨在为用户提供快速 Docker 容器运行环境的工�
 
 ## 技术栈
 
-- **后端**：Flask，Mysql，Docker
+- **后端**：Flask，Flask-Sqlalchemy，Docker
 
 ## 安装与运行
 ### 前提条件

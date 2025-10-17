@@ -14,5 +14,16 @@ class Config:
     DB_NAME = os.environ.get('DB_NAME', 'docker_run')
     DB_PORT = int(os.environ.get('DB_PORT', 3306))
 
+    SQLALCHEMY_DATABASE_URI = (
+        f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+    )
+    SQLALCHEMY_ENGINE_OPTIONS = {
+        "pool_size": 10,
+        "max_overflow": 20,
+        "pool_timeout": 30,
+        "pool_recycle": 1800,
+        "pool_pre_ping": True,
+    }
+
     ADMIN_USERNAME = os.environ.get('ADMIN_USERNAME', 'admin')
     ADMIN_PASSWORD = os.environ.get('ADMIN_PASSWORD', 'admin')

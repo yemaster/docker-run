@@ -1,7 +1,7 @@
 
 import bcrypt
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
-from models.db import select_one
+from models.admin import Admin
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -11,8 +11,8 @@ def login():
         username = request.form['username']
         password = request.form['password']
         
-        admin = select_one('SELECT * FROM admins WHERE username = %s', (username,))
-        if admin and bcrypt.checkpw(password.encode('utf-8'), admin['password_hash'].encode('utf-8')):
+        user = Admin.get_by_username(username)
+        if user and bcrypt.checkpw(password.encode('utf-8'), user.password_hash.encode('utf-8')):
             session['admin'] = username
             flash('登录成功')
             return redirect(url_for('main.index'))

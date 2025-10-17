@@ -5,7 +5,9 @@ from datetime import datetime, timedelta
 from docker.errors import NotFound
 
 from flask import Blueprint, render_template, request, session, url_for, flash, redirect, current_app
-from models.db import execute_query, select_one
+from models.template import Template
+from models.container import Container
+from models import db
 from utils.auth import get_user_id
 from utils.docker import docker_client
 from utils.logger import log_action
@@ -16,8 +18,8 @@ MAX_PER_USER = 3
 MAX_TOTAL = 20
 
 def check_limits(user_id):
-    user_count = select_one('SELECT COUNT(*) cnt FROM containers WHERE user_id = %s AND status != "removed"', (user_id,))['cnt']
-    total_count = select_one('SELECT COUNT(*) cnt FROM containers WHERE status != "removed"')['cnt']
+    user_count = Container.query.filter_by(user_id=user_id).filter(Container.status != 'removed').count()
+    total_count = Container.query.filter(Container.status != 'removed').count()
     if user_count >= MAX_PER_USER:
         return False, '每个用户最多 3 个容器'
     if total_count >= MAX_TOTAL:
@@ -35,18 +37,18 @@ def create():
     if not ok:
         return {'success': False, 'message': msg}
 
-    template = select_one('SELECT * FROM templates WHERE id = %s', (template_id,))
+    template = Template.query.get(template_id)
     if not template:
         return {'success': False, 'message': '模板不存在'}
     
     if container_name == '':
-        container_name = f"{template['name']}_{random.randint(1000,9999)}"
+        container_name = f"{template.name}_{random.randint(1000,9999)}"
     
     if not all(c in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_-" for c in container_name):
         return {'success': False, 'message': '容器名称只能包含字母、数字、下划线和中划线'}
 
     # 自动分配主机端口
-    used_ports = [c['host_port'] for c in execute_query('SELECT host_port FROM containers WHERE status != "removed"')]
+    used_ports = [c.host_port for c in Container.query.filter(Container.status != 'removed').all()]
     host_port = 30000
     while host_port in used_ports:
         host_port += 1
@@ -54,22 +56,32 @@ def create():
     # 创建 Docker 容器
     try:
         container_config = {
-            "image": template['image'],
+            "image": template.image,
             "detach": True,
-            "ports": {f"{template['container_port']}/tcp": host_port},
-            "cpu_quota": int(float(template['cpu_limit']) * 100000) if template['cpu_limit'] else None,
-            "mem_limit": template['mem_limit'] if template['mem_limit'] else None,
+            "ports": {f"{template.container_port}/tcp": host_port},
+            "cpu_quota": int(float(template.cpu_limit) * 100000) if template.cpu_limit else None,
+            "mem_limit": template.mem_limit if template.mem_limit else None,
             "name": f"{user_id}_{container_name}"
         }
-        if len(template['command'].strip()) > 0:
-            container_config["command"] = template['command']
+        if len(template.command.strip()) > 0:
+            container_config["command"] = template.command
+
         container = docker_client.containers.run(**container_config)
         docker_id = container.id
 
         # 默认 2 小时后销毁
         destroy_time = datetime.now() + timedelta(hours=2)
-        execute_query('INSERT INTO containers (user_id, name, template_id, docker_id, host_port, status, destroy_time) VALUES (%s, %s, %s, %s, %s, %s, %s)',
-                   (user_id, container_name, template_id, docker_id, host_port, 'running', destroy_time.isoformat()))
+        container = Container(
+            name=container_name,
+            user_id=user_id,
+            template_id=template.id,
+            docker_id=docker_id,
+            host_port=host_port,
+            status='running',
+            destroy_time=destroy_time
+        )
+        db.session.add(container)
+        db.session.commit()
         log_action(f'Create container {docker_id}', user_id)
         return {'success': True, 'message': '容器创建成功', 'redirect': url_for('container.get_list')}
     except Exception as e:
@@ -85,27 +97,35 @@ def get_list():
     offset = (page - 1) * per_page
 
     if is_admin:
-        conts = execute_query('SELECT * FROM containers ORDER BY id desc LIMIT %s OFFSET %s', (per_page, offset))
-        total_items = select_one('SELECT COUNT(*) cnt FROM containers')['cnt']
+        cont_query = Container.query.order_by(Container.id.desc())
     else:
-        conts = execute_query('SELECT * FROM containers WHERE user_id = %s AND status != "removed" ORDER BY id desc LIMIT %s OFFSET %s', (user_id, per_page, offset))
-        total_items = select_one('SELECT COUNT(*) cnt FROM containers WHERE user_id = %s AND status != "removed"', (user_id,))['cnt']
+        cont_query = Container.query.filter_by(user_id=user_id).filter(Container.status != 'removed').order_by(Container.id.desc())
     
+    total_items = cont_query.count()
+    containers = cont_query.offset(offset).limit(per_page).all()
     total_pages = (total_items - 1) // per_page + 1
     
-    return render_template('container/list.html', containers=conts, per_page=per_page, current_page=page, total_items=total_items, total_pages=total_pages, is_admin=is_admin)
+    return render_template(
+        'container/list.html',
+        containers=containers, 
+        per_page=per_page, 
+        current_page=page, 
+        total_items=total_items, 
+        total_pages=total_pages, 
+        is_admin=is_admin
+    )
 
 @container_bp.route('/<int:cont_id>/stat')
 def stat(cont_id):
     user_id = get_user_id()
     is_admin = 'admin' in session
     
-    cont = select_one('SELECT * FROM containers WHERE id = %s AND status != "removed"', (cont_id,))
-    if not cont or (not is_admin and cont['user_id'] != user_id):
+    cont = Container.query.filter_by(id=cont_id).filter(Container.status != 'removed').first()
+    if not cont or (not is_admin and cont.user_id != user_id):
         flash('无权限')
         return redirect(url_for('container.get_list'))
     try:
-        docker_cont = docker_client.containers.get(cont['docker_id'])
+        docker_cont = docker_client.containers.get(cont.docker_id)
         stats = docker_cont.stats(stream=False)
         cpu_delta = stats['cpu_stats']['cpu_usage']['total_usage'] - stats['precpu_stats']['cpu_usage']['total_usage']
         system_cpu_delta = stats['cpu_stats']['system_cpu_usage'] - stats['precpu_stats']['system_cpu_usage']
@@ -129,19 +149,14 @@ def overview(cont_id):
     user_id = get_user_id()
     is_admin = 'admin' in session
 
-    cont = select_one('''
-        SELECT c.*, t.name AS template_name, t.image, t.cpu_limit, t.mem_limit, t.disk_limit, t.command, t.tags, t.container_port, t.description
-        FROM containers c
-        JOIN templates t ON c.template_id = t.id
-        WHERE c.id = %s AND c.status != "removed"
-    ''', (cont_id,))
-    if not cont or (not is_admin and cont['user_id'] != user_id):
+    cont = Container.get_with_template_info(cont_id)
+    if not cont or (not is_admin and cont["user_id"] != user_id):
         flash('无权限')
         return redirect(url_for('container.get_list'))
     
     # 获取容器的网络信息
     try:
-        docker_cont = docker_client.containers.get(cont['docker_id'])
+        docker_cont = docker_client.containers.get(cont["docker_id"])
         net_info = docker_cont.attrs['NetworkSettings']
         cont = dict(cont)
         cont['ip_address'] = net_info['IPAddress']
@@ -153,57 +168,58 @@ def overview(cont_id):
         cont['net_mode'] = 'N/A'
         cont['ports'] = 'N/A'
     is_admin = 'admin' in session
-    return render_template('container/overview.html', container=cont, host_ip=current_app.config["HOST_IP"], is_admin=is_admin)
+    return render_template(
+        'container/overview.html', 
+        container=cont, 
+        host_ip=current_app.config["HOST_IP"], 
+        is_admin=is_admin
+    )
 
 @container_bp.route('/<int:cont_id>/logs')
 def logs(cont_id):
     user_id = get_user_id()
     is_admin = 'admin' in session
 
-    # 联合查询获取模板信息
-    cont = select_one('''
-        SELECT c.*, t.name AS template_name, t.image, t.cpu_limit, t.mem_limit, t.disk_limit, t.tags, t.container_port, t.description
-        FROM containers c
-        JOIN templates t ON c.template_id = t.id
-        WHERE c.id = %s AND c.status != "removed"
-    ''', (cont_id,))
-    if not cont or (not is_admin and cont['user_id'] != user_id):
+    cont = Container.get_with_template_info(cont_id)
+    if not cont or (not is_admin and cont["user_id"] != user_id):
         flash('无权限')
         return redirect(url_for('container.get_list'))
     
-    return render_template('container/logs.html', container=cont, host_ip=current_app.config["HOST_IP"], is_admin=is_admin)
+    return render_template(
+        'container/logs.html', 
+        container=cont, 
+        host_ip=current_app.config["HOST_IP"], 
+        is_admin=is_admin
+    )
 
 @container_bp.route('/<int:cont_id>/terminal')
 def terminal(cont_id):
     user_id = get_user_id()
     is_admin = 'admin' in session
-    # 联合查询获取模板信息
-    cont = select_one('''
-        SELECT c.*, t.name AS template_name, t.image, t.cpu_limit, t.mem_limit, t.disk_limit, t.tags, t.container_port, t.available_command, t.description
-        FROM containers c
-        JOIN templates t ON c.template_id = t.id
-        WHERE c.id = %s AND c.status != "removed"
-    ''', (cont_id,))
-    if not cont or (not is_admin and cont['user_id'] != user_id):
+    
+    cont = Container.get_with_template_info(cont_id)
+    if not cont or (not is_admin and cont["user_id"] != user_id):
         flash('无权限')
         return redirect(url_for('container.get_list'))
-    return render_template('container/terminal.html', container=cont, is_admin=is_admin, host_ip=current_app.config["HOST_IP"])
+    
+    return render_template(
+        'container/terminal.html', 
+        container=cont, 
+        is_admin=is_admin, 
+        host_ip=current_app.config["HOST_IP"]
+    )
 
 @container_bp.route('/<int:cont_id>/files')
 def files(cont_id):
     user_id = get_user_id()
     is_admin = 'admin' in session
-    # 联合查询获取模板信息
-    cont = select_one('''
-        SELECT c.*, t.name AS template_name, t.image, t.cpu_limit, t.mem_limit, t.disk_limit, t.tags, t.container_port, t.description
-        FROM containers c
-        JOIN templates t ON c.template_id = t.id
-        WHERE c.id = %s AND c.status != "removed"
-    ''', (cont_id,))
-    if not cont or (not is_admin and cont['user_id'] != user_id):
+    
+    cont = Container.get_with_template_info(cont_id)
+    if not cont or (not is_admin and cont["user_id"] != user_id):
         flash('无权限')
         return redirect(url_for('container.get_list'))
-    container = docker_client.containers.get(cont['docker_id'])
+    
+    container = docker_client.containers.get(cont["docker_id"])
     workdir = container.attrs['Config']['WorkingDir'] or '/'
     return render_template('container/files.html', container=cont, current_path=workdir, host_ip=current_app.config["HOST_IP"], is_admin=is_admin)
 
@@ -211,14 +227,9 @@ def files(cont_id):
 def files_action(cont_id, action):
     user_id = get_user_id()
     is_admin = 'admin' in session
-    # 联合查询获取模板信息
-    cont = select_one('''
-        SELECT c.*, t.name AS template_name, t.image, t.cpu_limit, t.mem_limit, t.disk_limit, t.tags, t.container_port, t.description
-        FROM containers c
-        JOIN templates t ON c.template_id = t.id
-        WHERE c.id = %s AND c.status != "removed"
-    ''', (cont_id,))
-    if not cont or (not is_admin and cont['user_id'] != user_id):
+    
+    cont = Container.get_with_template_info(cont_id)
+    if not cont or (not is_admin and cont["user_id"] != user_id):
         return {
             'success': False,
             'message': "无权限"
@@ -226,7 +237,7 @@ def files_action(cont_id, action):
     
     try:
         # 获取容器详细信息
-        container = docker_client.containers.get(cont['docker_id'])
+        container = docker_client.containers.get(cont["docker_id"])
         path = request.args.get('path', '/')
         if not path.startswith('/'):
             path = '/' + path
@@ -467,23 +478,29 @@ def files_action(cont_id, action):
 def manage(cont_id, action):
     user_id = get_user_id()
     is_admin = 'admin' in session
-    cont = select_one('SELECT * FROM containers WHERE id = %s AND status != "removed"', (cont_id,))
-    if not cont or (not is_admin and cont['user_id'] != user_id):
+
+    cont = Container.query.filter_by(id=cont_id).filter(Container.status != 'removed').first()
+    if not cont or (not is_admin and cont.user_id != user_id):
         return {'success': False, 'message': '无权限'}
 
     try:
-        docker_cont = docker_client.containers.get(cont['docker_id'])
+        docker_cont = docker_client.containers.get(cont.docker_id)
         if action == 'start':
             docker_cont.start()
-            execute_query('UPDATE containers SET status = %s WHERE id = %s', (docker_cont.status, cont_id))
+            cont.status = docker_cont.status
+            db.session.commit()
+
         elif action == 'stop':
             docker_cont.stop()
-            execute_query('UPDATE containers SET status = %s WHERE id = %s', (docker_cont.status, cont_id))
+            cont.status = docker_cont.status
+            db.session.commit()
+
         elif action == 'remove':
-            execute_query('UPDATE containers SET status = %s WHERE id = %s', ('removed', cont_id))
+            cont.status = 'removed'
+            db.session.commit()
             docker_cont.remove(force=True)
         elif action == 'extend':
-            remaining = cont['destroy_time'] - datetime.now()
+            remaining = cont.destroy_time - datetime.now()
             if remaining > timedelta(minutes=20):
                 return {
                     'success': False,
@@ -494,17 +511,19 @@ def manage(cont_id, action):
                     'success': False,
                     'message': '每个容器最多只能延长2次'
                 }
-            new_destroy_time = cont['destroy_time'] + timedelta(hours=1)
-            execute_query('UPDATE containers SET destroy_time = %s, extended_times = extended_times + 1 WHERE id = %s',
-                       (new_destroy_time.isoformat(), cont_id))
-            log_action(f'Extend container {cont["docker_id"]}', user_id)
+            new_destroy_time = cont.destroy_time + timedelta(hours=1)
+            cont.destroy_time = new_destroy_time
+            cont.extended_times += 1
+            db.session.commit()
+
+            log_action(f'Extend container {cont.docker_id}', user_id)
             
             return {
                 'success': True,
                 'new_destroy_time': new_destroy_time.isoformat()
             }
         
-        log_action(f'{action} container {cont["docker_id"]}', user_id)
+        log_action(f'{action} container {cont.docker_id}', user_id)
         return {'success': True, 'message': f'操作 {action} 成功', 'redirect': url_for('container.get_list')}
     except Exception as e:
         return {'success': False, 'message': f'操作失败: {str(e)}'}

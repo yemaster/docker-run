@@ -4,3 +4,6 @@ flask-socketio
 pymysql
 DBUtils
 python-dotenv
+Flask-SQLAlchemy
+flask-migrate
+alembic

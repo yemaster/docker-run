@@ -5,7 +5,7 @@ import os
 from flask_socketio import Namespace, emit, disconnect
 from flask import request, session
 from utils.docker import docker_client
-from models.db import select_one
+from models.container import Container
 from utils.auth import get_user_id
 
 
@@ -34,11 +34,8 @@ class ContainerTerminalNamespace(Namespace):
         user_id = get_user_id()
         is_admin = 'admin' in session
 
-        cont = select_one(
-            'SELECT * FROM containers WHERE id = %s AND status != "removed"',
-            (container_id,)
-        )
-        if not cont or (not is_admin and cont['user_id'] != user_id):
+        cont = Container.query.filter_by(id=container_id).filter(Container.status != 'removed').first()
+        if not cont or (not is_admin and cont.user_id != user_id):
             emit('error', {'message': '无权限'})
             return
 
@@ -61,7 +58,7 @@ class ContainerTerminalNamespace(Namespace):
         try:
             # 创建 exec 会话
             exec_id = docker_client.api.exec_create(
-                cont['docker_id'],
+                cont.docker_id,
                 command,
                 tty=True,
                 stdin=True,

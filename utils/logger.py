@@ -1,6 +1,12 @@
-from models.db import execute_query
+from models import db
+from models.log import Log
 from datetime import datetime
 
 def log_action(action, user_id):
-    execute_query('INSERT INTO logs (action, user_id, timestamp) VALUES (%s, %s, %s)',
-                   (action, user_id, datetime.now().isoformat()))
+    log_entry = Log(
+        user_id=user_id, 
+        action=action, 
+        timestamp=datetime.utcnow()
+    )
+    db.session.add(log_entry)
+    db.session.commit()
