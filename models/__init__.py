@@ -11,5 +11,7 @@ def init_db(app):
 
     with app.app_context():
         from models.admin import init_admin
+        from models.settings import initialize_default_settings
         db.create_all()
         init_admin()
+        initialize_default_settings()

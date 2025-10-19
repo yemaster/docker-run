@@ -1,9 +1,9 @@
 docker
 flask
 flask-socketio
+python-dotenv
 pymysql
 DBUtils
-python-dotenv
 Flask-SQLAlchemy
 flask-migrate
 alembic

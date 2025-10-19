@@ -12,6 +12,8 @@ from utils.auth import get_user_id
 from utils.docker import docker_client
 from utils.logger import log_action
 
+from utils.settings import get_setting
+
 container_bp = Blueprint('container', __name__, url_prefix='/container')
 
 MAX_PER_USER = 3
@@ -310,10 +312,11 @@ def files_action(cont_id, action):
                     'message': '文件不存在'
                 }
             if action == 'view':
-                if os.path.getsize(file_path) > current_app.config["MAX_EDIT_SIZE"]:
+                MAX_EDIT_SIZE = get_setting('MAX_EDIT_SIZE', default=102400, type_cast=int)
+                if os.path.getsize(file_path) > MAX_EDIT_SIZE:
                     return {
                         'success': False,
-                        'message': f'文件过大，仅支持编辑小于 {current_app.config["MAX_EDIT_SIZE"] // 1024} KB 的文件'
+                        'message': f'文件过大，仅支持编辑小于 {MAX_EDIT_SIZE // 1024} KB 的文件'
                     }
                 with open(file_path, 'rb') as f:
                     content = f.read()
